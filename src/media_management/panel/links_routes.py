@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated, Any, Literal
 
 import aiosqlite
@@ -68,7 +69,7 @@ async def create_link(request: Request, user: CsrfUser, conn: MainDb,
     cur = await conn.execute(
         "INSERT INTO links (token_hash, title, mode, password_hash, created_at, created_by, expires_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (token_hash, title, mode, hash_password(password) if mode == "password" else None,
+        (token_hash, title, mode, await asyncio.to_thread(hash_password, password) if mode == "password" else None,
          now_iso(), user, expiry(days, settings.link_max_days)))
     link_id = cur.lastrowid
     jellyfin = Jellyfin(settings.jellyfin_url, settings.jellyfin_timeout_s)

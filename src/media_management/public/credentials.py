@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from dataclasses import dataclass
 
@@ -51,7 +52,9 @@ async def _password(pconn: aiosqlite.Connection, settings: Settings, link: aiosq
     if not password:
         return Denied(401, need="password")
     await link_delay(pconn, settings, link["id"])
-    ok = verify_password(link["password_hash"], password)
+    # Argon2 tarda decenas de ms de CPU: en el bucle de eventos bloquearía también
+    # las descargas de los demás mientras alguien prueba contraseñas.
+    ok = await asyncio.to_thread(verify_password, link["password_hash"], password)
     await record_attempt(pconn, link["id"], "password", ip, ok)
     if not ok:
         await public_event(pconn, "password_failed", "denied", link_id=link["id"], ip=ip)

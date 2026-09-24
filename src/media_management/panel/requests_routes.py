@@ -1,4 +1,5 @@
 import datetime
+import sqlite3
 from typing import Annotated
 
 import aiosqlite
@@ -71,10 +72,13 @@ async def approve(request: Request, request_id: int, user: CsrfUser, conn: MainD
         raise HTTPException(400, f"máximo {settings.link_max_days} días")
     # La concesión en main.db es la fuente de verdad: si se escribe y falla lo de
     # public.db, el público ve la concesión igualmente.
-    cur = await conn.execute(
-        "INSERT INTO grants (link_id, request_id, name, created_at, approved_by, expires_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (link["id"], req["id"], req["name"], now_iso(), user, expiry(days, settings.link_max_days)))
+    try:
+        cur = await conn.execute(
+            "INSERT INTO grants (link_id, request_id, name, created_at, approved_by, expires_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (link["id"], req["id"], req["name"], now_iso(), user, expiry(days, settings.link_max_days)))
+    except sqlite3.IntegrityError:
+        raise HTTPException(409, "la solicitud ya está aprobada") from None
     await audit(conn, user, "access_approved", "ok", target=f"enlace {link['id']}", ip=client_ip(request),
                 link_id=link["id"], request_id=req["id"], grant_id=cur.lastrowid, days=days)
     await conn.commit()

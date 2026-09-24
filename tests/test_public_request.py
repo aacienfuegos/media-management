@@ -222,3 +222,15 @@ def test_nothing_from_jellyfin_reaches_the_public(env: Env, jellyfin: FakeJellyf
         assert item not in blob and item.upper() not in blob
         assert host not in blob and "/Items/" not in blob and "jellyfin" not in blob.lower()
         assert "/library/" not in blob
+
+
+def test_double_approval_is_a_clean_conflict(env: Env, panel: TestClient, pub: TestClient) -> None:
+    ids = send_files(env, FILES)
+    token, _ = create_link(panel, [ids["a.txt"]], mode="request")
+    ask(pub, token, "Doble")
+    rid = request_id(env, "Doble")
+    approve(panel, env, "Doble")
+    sql(env, "UPDATE access_requests SET status = 'pending' WHERE id = ?", (rid,), db="public")
+    r = panel.post(f"/requests/{rid}/approve", data={"csrf": CSRF, "days": 7})
+    assert r.status_code == 409
+    assert sql(env, "SELECT COUNT(*) FROM grants")[0][0] == 1
