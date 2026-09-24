@@ -15,6 +15,7 @@ from media_management.manifest import build_manifest, compare, serialize, write_
 from media_management.roots import Root, load_roots, media_problem
 from media_management.settings import Settings
 from media_management.thumbs import get_thumb, thumb_item_id
+from media_management.trash import reconcile_trash
 
 log = logging.getLogger(__name__)
 THUMB_PREFETCH_PER_CYCLE = 400
@@ -121,6 +122,7 @@ async def run_cycle(conn: aiosqlite.Connection, settings: Settings, roots: dict[
     }
     await set_state(conn, "last_scan", json.dumps(summary))
     await write_manifest(conn, settings, roots, scans, export.ids, export.problem)
+    await reconcile_trash(conn, settings)
     await conn.commit()
     if summary["new"] or summary["gone"]:
         await audit(conn, "worker", "scan", "ok", new=summary["new"], gone=summary["gone"])

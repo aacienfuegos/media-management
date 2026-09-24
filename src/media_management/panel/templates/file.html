@@ -29,7 +29,7 @@
       {% if root.shareable %}
       <form method="get" action="/links/new"><input type="hidden" name="file_id" value="{{ f.id }}"><button class="primary">Crear enlace con este fichero</button></form>
       {% endif %}
-      {% if root.renamable %}
+      {% if root.renamable and not root.synced %}
       <a class="button" href="/files/{{ f.id }}/rename">Renombrar</a>
       {% endif %}
       {% if blockers %}
