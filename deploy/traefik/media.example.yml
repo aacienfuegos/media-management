@@ -1,0 +1,48 @@
+# Referencia para el proveedor de ficheros de Traefik. NO es un fichero para aplicar
+# tal cual: los nombres de host, IPs y middlewares son de ejemplo.
+#
+# Tres routers para tres procesos distintos. El del panel lleva forward-auth; el de
+# la API NO (autentica con tokens) y apunta a otro proceso que no contiene el código
+# que lee X-authentik-username: en un router sin forward-auth Traefik deja pasar esa
+# cabecera tal cual. El público va en el entrypoint de internet con CrowdSec.
+
+http:
+  routers:
+    media-panel:
+      rule: Host(`media.home.arpa`)
+      entryPoints: [websecure]
+      middlewares: [authentik-forward-auth@file]
+      service: media-panel
+      tls: {}
+
+    # El outpost de Authentik necesita su propio router en el mismo host y entrypoint.
+    media-panel-outpost:
+      rule: Host(`media.home.arpa`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [websecure]
+      priority: 100
+      service: authentik-outpost
+      tls: {}
+
+    media-api:
+      rule: Host(`media-api.home.arpa`)
+      entryPoints: [websecure]
+      service: media-api
+      tls: {}
+
+    media-share:
+      rule: Host(`share.example.org`)
+      entryPoints: [public]
+      middlewares: [crowdsec-bouncer@file]
+      service: media-share
+      tls: {}
+
+  services:
+    media-panel:
+      loadBalancer:
+        servers: [{url: "http://192.0.2.50:8002"}]
+    media-api:
+      loadBalancer:
+        servers: [{url: "http://192.0.2.50:8003"}]
+    media-share:
+      loadBalancer:
+        servers: [{url: "http://192.0.2.50:8080"}]
