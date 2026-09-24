@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Papelera{% endblock %}
+{% block content %}
+<h1>Papelera</h1>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+<p class="muted">Lo borrado se mueve aquí, fuera de la biblioteca y en el mismo disco. La app nunca borra: el host vacía la papelera a los 30 días.</p>
+<table>
+  <thead><tr><th>Fichero</th><th>Raíz</th><th class="num">Tamaño</th><th>Borrado</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+  <tr>
+    <td class="name">{% if e.file_id %}<a href="/files/{{ e.file_id }}">{{ e.relpath }}</a>{% else %}{{ e.relpath }}{% endif %}</td>
+    <td>{{ e.root }}</td>
+    <td class="num">{{ e.size_bytes|size }}</td>
+    <td>{{ e.trashed_at|local }} <span class="muted">por {{ e.trashed_by }}</span></td>
+    <td>{% if e.restored_at %}<span class="tag ok">restaurado {{ e.restored_at|local }}</span>{% elif e.purged_at %}<span class="tag">vaciado</span>{% else %}<span class="tag warn">en la papelera</span>{% endif %}</td>
+    <td>{% if not e.restored_at and not e.purged_at %}<form method="post" action="/trash/{{ e.id }}/restore"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Restaurar</button></form>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">La papelera está vacía.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

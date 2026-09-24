@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Renombrar{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/roots/{{ root.name }}">{{ root.name }}</a> / <a href="/files/{{ f.id }}" class="name">{{ f.relpath }}</a></p>
+<h1>Renombrar</h1>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+<form method="post" action="/files/{{ f.id }}/rename" class="panel">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="new_name">Nombre nuevo</label>
+  <input id="new_name" name="new_name" value="{{ f.name }}" required maxlength="255" class="wide">
+  <p class="hint">Se queda en la misma carpeta. Si ya existe un fichero con ese nombre, no se toca nada. Los enlaces que incluyan este fichero lo siguen sirviendo con el nombre nuevo.</p>
+  <button class="primary">Renombrar</button>
+  <a class="button" href="/files/{{ f.id }}">Cancelar</a>
+</form>
+{% endblock %}

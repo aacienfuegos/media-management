@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from media_management.db import get_state, init_main, init_public, now_iso, set_state
 from media_management.health import health_detail
 from media_management.logs import audit
-from media_management.panel import admin_routes, catalog_routes, links_routes, requests_routes
+from media_management.panel import admin_routes, catalog_routes, links_routes, requests_routes, trash_routes
 from media_management.panel.deps import (
     CsrfUser, MainDb, PublicDb, User, client_ip, render, roots_of, settings_of)
 from media_management.roots import load_roots, media_problem
@@ -83,4 +83,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_routes.router)
     app.include_router(links_routes.router)
     app.include_router(requests_routes.router)
+    app.include_router(trash_routes.router)
     return app
