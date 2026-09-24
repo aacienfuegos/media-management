@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+{% if media_problem %}
+<div class="banner bad"><strong>La biblioteca no está disponible.</strong> {{ media_problem }}. No se escanea, no se sirve ni se mueve nada hasta que vuelva.</div>
+{% endif %}
+
+<section class="cards">
+  {% for name, root in roots.items() %}
+  <a class="card" href="/roots/{{ name }}">
+    <h2>{{ name }}</h2>
+    <p class="big">{{ counts[name].files }} <span>ficheros</span></p>
+    <p class="muted">{{ counts[name].bytes|size }}</p>
+    <p class="flags">
+      {% if root.shareable %}<span class="tag">compartible</span>{% endif %}
+      {% if root.in_manifest %}<span class="tag">manifiesto</span>{% endif %}
+      {% if root.synced %}<span class="tag">sincronizada</span>{% endif %}
+      {% if root.requires_second_copy %}<span class="tag warn">exige 2ª copia</span>{% endif %}
+    </p>
+  </a>
+  {% endfor %}
+  <a class="card" href="/links">
+    <h2>Enlaces activos</h2>
+    <p class="big">{{ active_links }}</p>
+  </a>
+  <a class="card{% if pending %} attention{% endif %}" href="/requests">
+    <h2>Solicitudes pendientes</h2>
+    <p class="big">{{ pending }}</p>
+  </a>
+</section>
+
+<section>
+  <h2>Estado {% if health_ok %}<span class="tag ok">todo bien</span>{% else %}<span class="tag bad">con problemas</span>{% endif %}</h2>
+  <table class="kv">
+    <tr><th>Biblioteca montada</th><td>{% if health.media.ok %}<span class="tag ok">sí</span>{% else %}<span class="tag bad">no</span> {{ health.media.problem }}{% endif %}</td></tr>
+    <tr><th>Export de IDs de Jellyfin</th><td>{% if health.jellyfin_ids_export.ok %}<span class="tag ok">al día</span>{% else %}<span class="tag bad">no utilizable</span> {{ health.jellyfin_ids_export.problem }}{% endif %}
+      {% if health.jellyfin_ids_export.age_s is not none %}<span class="muted">({{ health.jellyfin_ids_export.age_s // 60 }} min)</span>{% endif %}</td></tr>
+    <tr><th>Jellyfin</th><td>{% if health.jellyfin.ok %}<span class="tag ok">responde</span>{% else %}<span class="tag bad">no responde</span> (sin miniaturas nuevas){% endif %}</td></tr>
+    <tr><th>Worker</th><td>{% if health.worker.ok %}<span class="tag ok">vivo</span>{% else %}<span class="tag bad">sin latido</span>{% endif %}
+      {% if health.worker.heartbeat_age_s is not none %}<span class="muted">(latido hace {{ health.worker.heartbeat_age_s }} s)</span>{% endif %}</td></tr>
+    <tr><th>Último escaneo</th><td>{% if scan %}{{ scan.finished_at|ago }} · {{ scan.files }} ficheros, {{ scan.new }} nuevos, {{ scan.gone }} desaparecidos{% if scan.meta_errors %}, <span class="tag warn">{{ scan.meta_errors }} con metadatos ilegibles</span>{% endif %}{% else %}nunca{% endif %}
+      <form method="post" action="/scan" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Escanear ahora</button></form></td></tr>
+    <tr><th>Manifiesto</th><td>{% if manifest %}
+      {% if manifest.written %}<span class="tag ok">escrito</span> {{ manifest.at|ago }} · {{ manifest.clips }} clips, {{ manifest.without_id }} sin ID todavía, {{ manifest.without_date }} fuera por falta de fecha
+      {% else %}<span class="tag bad">no escrito</span> {{ manifest.at|ago }}: {{ manifest.problem }}{% if manifest.last_written_at %} · se conserva el de {{ manifest.last_written_at|local }}{% endif %}{% endif %}
+      {% if manifest.id_mismatches %}<br><span class="tag warn">{{ manifest.id_mismatches }} IDs no coinciden con el cálculo</span> Jellyfin puede haber cambiado su algoritmo de IDs (no bloquea: el export manda).{% endif %}
+      {% else %}todavía no generado{% endif %}</td></tr>
+    {% if comparison %}
+    <tr><th>Comparación con el manifiesto actual</th><td>{% if comparison.identical %}<span class="tag ok">idénticos</span>{% else %}<span class="tag warn">{{ comparison.differences|length }} diferencias</span>{% endif %} {{ comparison.at|ago }} · <a href="/manifest/compare">ver</a></td></tr>
+    {% endif %}
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,69 @@
+# Plantilla: los valores reales van en .env (ver .env.example) y deploy/local/.
+# El directorio de media del host se monta siempre en /media dentro de los
+# contenedores; las rutas de deploy/roots.example.toml son relativas a ese punto.
+
+x-app: &app
+  image: ${IMAGE:-ghcr.io/aacienfuegos/media-management:latest}
+  user: "${APP_UID:?}:${APP_GID:?}"
+  env_file: .env
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  environment: &app-env
+    MM_ROOTS_FILE: /config/roots.toml
+    MM_MEDIA_BASE: /media
+    MM_DATA_DIR: /data
+    MM_JELLYFIN_IDS_FILE: /jellyfin-ids/jellyfin-ids.json
+
+services:
+  worker:
+    <<: *app
+    command: ["worker"]
+    environment:
+      <<: *app-env
+      MM_MANIFEST_PATH: /manifest/${MANIFEST_FILE:-buceo.candidate.json}
+    volumes:
+      - ${ROOTS_FILE:?}:/config/roots.toml:ro
+      - ${MEDIA_DIR:?}:/media:ro
+      - ${DATA_DIR:?}/main:/data/main
+      - ${DATA_DIR:?}/cache:/data/cache
+      - ${MANIFEST_DIR:?}:/manifest
+      - ${IDS_EXPORT_DIR:?}:/jellyfin-ids:ro
+
+  panel:
+    <<: *app
+    command: ["serve", "panel", "--port", "8002"]
+    ports: ["${PANEL_BIND:-8002}:8002"]
+    volumes:
+      - ${ROOTS_FILE:?}:/config/roots.toml:ro
+      - ${MEDIA_DIR:?}:/media
+      - ${DATA_DIR:?}/main:/data/main
+      - ${DATA_DIR:?}/public:/data/public
+      - ${DATA_DIR:?}/cache:/data/cache
+      - ${IDS_EXPORT_DIR:?}:/jellyfin-ids:ro
+    depends_on: [worker]
+
+  api:
+    <<: *app
+    command: ["serve", "api", "--port", "8003"]
+    ports: ["${API_BIND:-8003}:8003"]
+    volumes:
+      - ${ROOTS_FILE:?}:/config/roots.toml:ro
+      - ${MEDIA_DIR:?}:/media:ro
+      - ${DATA_DIR:?}/main:/data/main
+      - ${IDS_EXPORT_DIR:?}:/jellyfin-ids:ro
+    depends_on: [worker]
+
+  public:
+    <<: *app
+    command: ["serve", "public", "--port", "8001"]
+    volumes:
+      - ${ROOTS_FILE:?}:/config/roots.toml:ro
+      - ${MEDIA_DIR:?}:/media:ro
+      # Solo lectura también para el kernel: si este proceso cae, no puede tocar
+      # enlaces, concesiones ni catálogo aunque se salte el mode=ro de la app.
+      - ${DATA_DIR:?}/main:/data/main:ro
+      - ${DATA_DIR:?}/public:/data/public
+    depends_on: [worker]
