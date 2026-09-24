@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Comparación del manifiesto{% endblock %}
+{% block content %}
+<h1>Candidato contra manifiesto actual</h1>
+<p class="muted">Durante el traspaso, el manifiesto que escribe esta app se compara clip a clip con el que sigue escribiendo el generador anterior: misma identidad, mismo ID, misma fecha, mismo tamaño. Si difieren, manda el anterior.</p>
+{% if not configured %}
+<p class="muted">No hay manifiesto actual configurado para comparar (<code>MM_MANIFEST_COMPARE_WITH</code>).</p>
+{% elif not comparison %}
+<p class="muted">Todavía no se ha hecho ninguna comparación.</p>
+{% else %}
+<div class="banner {% if comparison.identical %}ok{% elif comparison.problem %}bad{% else %}warn{% endif %}">
+  {% if comparison.problem %}{{ comparison.problem }}
+  {% elif comparison.identical %}Idénticos clip a clip.
+  {% else %}{{ comparison.total }} diferencias.{% endif %}
+  Comparado {{ comparison.at|ago }}{% if comparison.current_generated_at %} · actual generado {{ comparison.current_generated_at|local }}, candidato {{ comparison.candidate_generated_at|local }}{% endif %}.
+</div>
+<p class="hint">Si los dos se generaron con minutos de diferencia, un clip recién copiado o recién indexado puede aparecer como diferencia en una pasada y desaparecer en la siguiente. Una diferencia que se repite es real.</p>
+{% if comparison.differences %}
+<table>
+  <thead><tr><th>jellyfin_path</th><th>Diferencia</th><th>Candidato</th><th>Actual</th></tr></thead>
+  <tbody>
+  {% for d in comparison.differences %}
+  <tr><td class="name">{{ d.jellyfin_path }}</td><td>{{ d.problem }}</td><td class="name">{{ d.candidate if d.candidate is not none else "" }}</td><td class="name">{{ d.current if d.current is not none else "" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}
