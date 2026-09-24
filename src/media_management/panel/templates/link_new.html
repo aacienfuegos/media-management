@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Nuevo enlace{% endblock %}
+{% block content %}
+<h1>Nuevo enlace de descarga</h1>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+{% if not files %}
+<p class="muted">No hay ficheros seleccionados. Elige uno o varios desde una raíz compartible.</p>
+{% else %}
+<form method="post" action="/links" class="grid2">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="panel">
+    <label for="title">Título</label>
+    <input id="title" name="title" maxlength="120" value="{{ title }}" placeholder="{% if files|length == 1 %}{{ files[0].name }}{% else %}{{ files|length }} ficheros{% endif %}" class="wide">
+    <p class="hint">Lo verá quien abra el enlace.</p>
+
+    <label for="mode">Acceso</label>
+    <select id="mode" name="mode" data-mode>
+      <option value="open" {% if mode == "open" %}selected{% endif %}>Abierto: quien tenga el enlace</option>
+      <option value="password" {% if mode == "password" %}selected{% endif %}>Contraseña: enlace + una clave común</option>
+      <option value="request" {% if mode == "request" %}selected{% endif %}>Por solicitud: enlace + tu aprobación, persona a persona</option>
+    </select>
+    <div data-show-mode="password">
+      <label for="password">Contraseña</label>
+      <input id="password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" data-required-when-shown>
+      <p class="hint">Mínimo 8 caracteres. Compártela por un canal distinto al del enlace.</p>
+    </div>
+    <div data-show-mode="request">
+      <p class="hint">Quien abra el enlace podrá pedir acceso con su nombre y recibirá un código personal. Tú apruebas o rechazas cada solicitud aquí, y ves quién descarga qué. El nombre lo escribe el visitante: no es una identidad verificada.</p>
+    </div>
+
+    <label for="days">Caduca en (días)</label>
+    <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="{{ default_days }}" required>
+    <p class="hint">Obligatorio, máximo {{ max_days }}. Se puede renovar desde aquí.</p>
+
+    <p><button class="primary">Crear enlace</button></p>
+  </div>
+  <div>
+    <h2>{{ files|length }} fichero{% if files|length != 1 %}s{% endif %}</h2>
+    <table>
+      <tbody>
+      {% for f in files %}
+      <tr>
+        <td><input type="hidden" name="file_id" value="{{ f.id }}"><img class="thumb" src="/thumb/{{ f.id }}" alt=""></td>
+        <td class="name">{{ f.name }}<br><span class="muted">{{ f.root }}</span></td>
+        <td class="num">{{ f.size_bytes|size }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from media_management.db import get_state, init_main, init_public, now_iso, set_state
 from media_management.health import health_detail
 from media_management.logs import audit
-from media_management.panel import admin_routes, catalog_routes
+from media_management.panel import admin_routes, catalog_routes, links_routes, requests_routes
 from media_management.panel.deps import (
     CsrfUser, MainDb, PublicDb, User, client_ip, render, roots_of, settings_of)
 from media_management.roots import load_roots, media_problem
@@ -31,7 +31,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.roots = load_roots(settings)
-    add_security_headers(app)
+    # same-origin y no no-referrer: con no-referrer el navegador manda `Origin: null` en
+    # los POST de formulario y la comprobación de origen del CSRF no puede funcionar.
+    add_security_headers(app, referrer_policy="same-origin")
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
     @app.get("/healthz")
@@ -79,4 +81,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(catalog_routes.router)
     app.include_router(admin_routes.router)
+    app.include_router(links_routes.router)
+    app.include_router(requests_routes.router)
     return app

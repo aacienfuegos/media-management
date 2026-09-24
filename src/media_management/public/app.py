@@ -6,10 +6,12 @@ from pathlib import Path
 
 import aiosqlite
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, PlainTextResponse, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from media_management.db import init_public, open_persistent
+from media_management.public.routes import router
 from media_management.roots import load_roots, media_problem
 from media_management.settings import Settings, get_settings
 from media_management.web import add_security_headers
@@ -47,6 +49,7 @@ class MainReader:
     async def close(self) -> None:
         if self.conn is not None:
             await self.conn.close()
+            self.conn = None
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -77,4 +80,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ok = media_problem(settings, request.app.state.roots) is None and await reader.get() is not None
         return PlainTextResponse("ok" if ok else "unavailable", status_code=200 if ok else 503)
 
+    @app.exception_handler(RequestValidationError)
+    async def bad_request(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Sin eco de la entrada: el cuerpo lleva el token del enlace y credenciales.
+        return JSONResponse({"error": "bad_request"}, status_code=400)
+
+    app.include_router(router)
     return app

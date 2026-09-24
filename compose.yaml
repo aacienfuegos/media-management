@@ -59,6 +59,11 @@ services:
   public:
     <<: *app
     command: ["serve", "public", "--port", "8001"]
+    environment:
+      <<: *app-env
+      # El público solo cree la X-Real-IP que pone nginx, y solo si viene de su IP.
+      MM_TRUSTED_NGINX: '["${SHARE_NGINX_IP:-172.31.250.10}/32"]'
+    networks: [share]
     volumes:
       - ${ROOTS_FILE:?}:/config/roots.toml:ro
       - ${MEDIA_DIR:?}:/media:ro
@@ -67,3 +72,29 @@ services:
       - ${DATA_DIR:?}/main:/data/main:ro
       - ${DATA_DIR:?}/public:/data/public
     depends_on: [worker]
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports: ["${PUBLIC_BIND:-8080}:8080"]
+    environment:
+      TRAEFIK_IP: ${TRAEFIK_IP:?}
+      PUBLIC_UPSTREAM: public:8001
+      MEDIA_DIR: /media
+      DOWNLOAD_RATE: ${DOWNLOAD_RATE:-8m}
+      DOWNLOAD_CONN_PER_IP: ${DOWNLOAD_CONN_PER_IP:-4}
+      API_RATE: ${API_RATE:-30r/m}
+    volumes:
+      - ${NGINX_TEMPLATE:-./deploy/nginx/share.conf.template}:/etc/nginx/templates/default.conf.template:ro
+      - ${MEDIA_DIR:?}:/media:ro
+    networks:
+      share:
+        ipv4_address: ${SHARE_NGINX_IP:-172.31.250.10}
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [public]
+
+networks:
+  share:
+    ipam:
+      config:
+        - subnet: ${SHARE_SUBNET:-172.31.250.0/24}

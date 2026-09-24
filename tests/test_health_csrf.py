@@ -39,9 +39,14 @@ def test_state_changes_need_csrf_token(panel: TestClient) -> None:
     other_origin = panel.post("/scan", data={"csrf": token}, headers={"Origin": "https://evil.example"},
                               follow_redirects=False)
     assert other_origin.status_code == 403
+    null_origin = panel.post("/scan", data={"csrf": token}, headers={"Origin": "null"}, follow_redirects=False)
+    assert null_origin.status_code == 403
     ok = panel.post("/scan", data={"csrf": token}, headers={"Sec-Fetch-Site": "same-origin"},
                     follow_redirects=False)
     assert ok.status_code == 303
+    browser = panel.post("/scan", data={"csrf": token}, follow_redirects=False,
+                         headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://testserver"})
+    assert browser.status_code == 303
 
 
 def test_security_headers_everywhere(panel: TestClient, public: TestClient, api: TestClient) -> None:
@@ -49,8 +54,9 @@ def test_security_headers_everywhere(panel: TestClient, public: TestClient, api:
         assert "default-src 'none'" in r.headers["content-security-policy"]
         assert "unsafe-inline" not in r.headers["content-security-policy"]
         assert r.headers["x-content-type-options"] == "nosniff"
-        assert r.headers["referrer-policy"] == "no-referrer"
         assert r.headers["x-frame-options"] == "DENY"
+    assert public.get("/").headers["referrer-policy"] == "no-referrer"
+    assert panel.get("/").headers["referrer-policy"] == "same-origin"
     page = public.get("/")
     assert page.headers["cache-control"] == "no-store"
     assert '<meta name="robots" content="noindex' in page.text

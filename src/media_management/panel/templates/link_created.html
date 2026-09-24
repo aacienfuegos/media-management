@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Enlace creado{% endblock %}
+{% block content %}
+<h1>Enlace creado</h1>
+<div class="banner ok stack">
+  <p><strong>Copia el enlace ahora.</strong> Solo se muestra esta vez: se guarda hasheado y no se puede recuperar. Si lo pierdes, crea otro.</p>
+  <p><code class="secret" id="link-url">{{ url }}</code> <button type="button" data-copy="link-url">Copiar</button></p>
+</div>
+<table class="kv">
+  <tr><th>Título</th><td>{{ link.title }}</td></tr>
+  <tr><th>Acceso</th><td>{% if link.mode == "open" %}abierto{% elif link.mode == "password" %}con contraseña{% else %}por solicitud{% endif %}</td></tr>
+  <tr><th>Caduca</th><td>{{ link.expires_at|local }}</td></tr>
+  <tr><th>Ficheros</th><td>{{ files|length }}</td></tr>
+</table>
+<p><a class="button" href="/links/{{ link.id }}">Ver el enlace</a></p>
+{% endblock %}

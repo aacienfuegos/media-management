@@ -41,7 +41,8 @@ def _walk(routes: list[Any], prefix: str) -> list[dict[str, Any]]:
 
 
 @pytest.mark.parametrize("owner,other", [
-    ("panel", "public"), ("panel", "api"), ("api", "panel"), ("api", "public")])
+    ("panel", "public"), ("panel", "api"), ("public", "panel"),
+    ("public", "api"), ("api", "panel"), ("api", "public")])
 def test_each_process_404s_the_routes_of_the_others(env: Env, owner: str, other: str) -> None:
     apps = {"panel": create_panel(env.settings), "public": create_public(env.settings),
             "api": create_api(env.settings)}
