@@ -8,7 +8,11 @@ COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.13-slim
-RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+# pip y setuptools no hacen falta en ejecución y traen sus propias dependencias
+# vendorizadas con CVE: fuera de la imagen final.
+RUN rm -rf /usr/local/lib/python3.13/site-packages/pip* /usr/local/lib/python3.13/site-packages/setuptools* \
+           /usr/local/lib/python3.13/site-packages/_distutils_hack /usr/local/bin/pip* \
+ && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 COPY --from=build /app/.venv /app/.venv
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 USER 10001

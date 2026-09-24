@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Registro{% endblock %}
+{% block content %}
+<h1>Registro</h1>
+<form class="toolbar" method="get" action="/audit">
+  <select name="action">
+    <option value="">Todas las acciones</option>
+    {% for a in actions %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>{% endfor %}
+  </select>
+  <button>Filtrar</button>
+</form>
+<table>
+  <thead><tr><th>Cuándo</th><th>Quién</th><th>Acción</th><th>Sobre</th><th>Resultado</th><th>IP</th><th>Detalle</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.ts|local("%d/%m/%Y %H:%M:%S") }}</td>
+    <td>{{ r.actor }}</td>
+    <td>{{ r.action }}</td>
+    <td>{% if r.link_id %}<a href="/links/{{ r.link_id }}">{{ r.target }}</a>{% else %}<span class="name">{{ r.target or "" }}</span>{% endif %}</td>
+    <td>{% if r.result == "ok" %}<span class="tag ok">ok</span>{% else %}<span class="tag warn">{{ r.result }}</span>{% endif %}</td>
+    <td class="name">{{ r.ip or "" }}</td>
+    <td class="small">{% if r.detail_obj %}{% for k, v in r.detail_obj.items() %}{{ k }}={{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">Sin entradas.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="pager">
+  {% if page > 1 %}<a class="button" href="?action={{ action|urlencode }}&page={{ page - 1 }}">Más recientes</a>{% endif %}
+  {% if more %}<a class="button" href="?action={{ action|urlencode }}&page={{ page + 1 }}">Más antiguas</a>{% endif %}
+</p>
+{% endblock %}
