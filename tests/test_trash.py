@@ -155,7 +155,7 @@ def test_worker_notices_purged_entries(env: Env, panel: TestClient) -> None:
 
 
 def run_purge(trash: Path, *args: str, days: str = "30") -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["sh", str(PURGE), *args], capture_output=True, text=True,
+    return subprocess.run(["bash", str(PURGE), *args], capture_output=True, text=True,
                           env={**os.environ, "TRASH_DIR": str(trash), "RETENTION_DAYS": days})
 
 
@@ -168,15 +168,18 @@ def test_host_purge_only_removes_old_day_folders(tmp_path: Path) -> None:
         (trash / root / day / "f.bin").write_bytes(b"x")
     (trash / "send" / "no-es-fecha").mkdir()
     outside = tmp_path / "importante"
-    outside.mkdir()
+    (outside / "2000-01-01").mkdir(parents=True)
+    (outside / "2000-01-01" / "irrepetible.MP4").write_bytes(b"x")
     os.symlink(outside, trash / "send" / "2000-01-01")
+    os.symlink(outside, trash / "raiz-plantada")
     dry = run_purge(trash, "-n")
     assert dry.returncode == 0 and (trash / "send" / old).exists()
     r = run_purge(trash)
     assert r.returncode == 0, r.stderr
     assert not (trash / "send" / old).exists() and not (trash / "buceo" / old).exists()
     assert (trash / "send" / recent / "f.bin").exists() and (trash / "send" / "no-es-fecha").exists()
-    assert outside.exists() and (trash / "send" / "2000-01-01").is_symlink()
+    assert (outside / "2000-01-01" / "irrepetible.MP4").exists()
+    assert (trash / "send" / "2000-01-01").is_symlink() and (trash / "raiz-plantada").is_symlink()
 
 
 def test_host_purge_refuses_wrong_dirs(tmp_path: Path) -> None:

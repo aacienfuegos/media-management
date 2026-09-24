@@ -2,8 +2,10 @@
 
 Borrar es un rename a `<base>/.trash/<raíz>/<fecha>/<ruta>`: mismo sistema de ficheros
 (instantáneo, no mueve bytes) y fuera de todas las raíces, así que Jellyfin deja de
-verlo. El vaciado lo hace un timer del host, no este proceso: comprometer la app no
-equivale a poder borrar la biblioteca."""
+verlo. El vaciado lo hace un timer del host, no este proceso: un fallo de lógica o un
+uso indebido del panel no puede destruir nada. Lo que esto no cubre es la ejecución de
+código arbitrario en el proceso del panel, que tiene la biblioteca montada con
+escritura para poder mover."""
 import ctypes
 import errno
 import os
