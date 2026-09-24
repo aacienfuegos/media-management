@@ -10,7 +10,7 @@ SENTINEL_NAME = ".media-root"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MM_", env_file=None)
+    model_config = SettingsConfigDict(env_prefix="MM_", env_file=None, env_ignore_empty=True)
 
     roots_file: Path
     media_base: Path
