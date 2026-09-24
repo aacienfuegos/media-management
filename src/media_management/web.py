@@ -6,16 +6,15 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' 
        "connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 
 
-def add_security_headers(app: FastAPI, no_store: bool = True) -> None:
+def add_security_headers(app: FastAPI, referrer_policy: str = "no-referrer") -> None:
     @app.middleware("http")
     async def _headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         response = await call_next(request)
         response.headers.setdefault("Content-Security-Policy", CSP)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Referrer-Policy"] = referrer_policy
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        if no_store:
-            response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Cache-Control", "no-store")
         return response

@@ -102,3 +102,5 @@ label { display: block; margin: .7rem 0 .25rem; font-weight: 600; }
 .icon { width: 96px; height: 54px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: var(--row-hover); color: var(--muted); font-size: .75rem; }
 pre.plain { white-space: pre-wrap; word-break: break-word; margin: 0; font: inherit; }
 h1.name { font-size: 1.15rem; }
+.wide { width: 100%; }
+.warnrow td { background: var(--warn-bg); }
