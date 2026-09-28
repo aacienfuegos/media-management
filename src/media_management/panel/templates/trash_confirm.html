@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Mover a la papelera{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/roots/{{ root.name }}">{{ root.name }}</a> / <a href="/files/{{ f.id }}" class="name">{{ f.relpath }}</a></p>
+<h1>Mover a la papelera</h1>
+{% if error %}<div class="banner bad">No se ha movido nada: {{ error }}.</div>{% endif %}
+<div class="grid2">
+  <div>
+    <img class="thumb big" src="/thumb/{{ f.id }}" alt="">
+    <p class="name">{{ f.name }}</p>
+    <p class="muted">{{ f.size_bytes|size }} · {{ root.name }}</p>
+  </div>
+  <div class="panel stack">
+    {% if blockers %}
+    <p><strong>No se puede borrar este fichero.</strong></p>
+    <ul>{% for b in blockers %}<li>{{ b }}.</li>{% endfor %}</ul>
+    <p><a class="button" href="/files/{{ f.id }}">Volver</a></p>
+    {% else %}
+    <p>El fichero se mueve a la papelera, fuera de la biblioteca: deja de verse aquí, en Jellyfin y en los enlaces que lo incluyan. Se puede restaurar hasta que el host vacíe la papelera, a los 30 días.</p>
+    {% if root.synced %}<p class="banner warn">No se volverá a subir aunque siga en el disco de respaldo o en la tarjeta.</p>{% endif %}
+    <form method="post" action="/files/{{ f.id }}/trash">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="danger">Sí, mover a la papelera</button>
+      <a class="button" href="/files/{{ f.id }}">Cancelar</a>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

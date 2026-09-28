@@ -1,0 +1,10 @@
+[Unit]
+Description=Vaciado diario de la papelera de media-management
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

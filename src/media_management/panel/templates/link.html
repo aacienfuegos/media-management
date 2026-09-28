@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}{{ link.title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/links">Enlaces</a></p>
+<h1>{{ link.title }}
+  {% if link.revoked_at %}<span class="tag bad">revocado</span>{% elif not active %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</h1>
+
+<div class="grid2">
+  <table class="kv">
+    <tr><th>Acceso</th><td>{% if link.mode == "open" %}abierto: quien tenga el enlace{% elif link.mode == "password" %}enlace + contraseña{% else %}enlace + aprobación por persona{% endif %}</td></tr>
+    <tr><th>Creado</th><td>{{ link.created_at|local }} por {{ link.created_by }}</td></tr>
+    <tr><th>Caduca</th><td>{{ link.expires_at|local }} <span class="muted">({{ link.expires_at|ago }})</span></td></tr>
+    {% if link.revoked_at %}<tr><th>Revocado</th><td>{{ link.revoked_at|local }}</td></tr>{% endif %}
+    <tr><th>Descargas iniciadas</th><td>{{ tickets|length }}</td></tr>
+    <tr><th>Credenciales fallidas</th><td>{{ failures }}{% if failures %} <span class="muted">(ver el registro para el detalle por IP)</span>{% endif %}</td></tr>
+  </table>
+  <div class="panel stack">
+    <p class="muted">La URL del enlace no se puede volver a mostrar: se guarda hasheada.</p>
+    {% if not link.revoked_at %}
+    <form method="post" action="/links/{{ link.id }}/renew" class="toolbar">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="days">Caducar dentro de</label>
+      <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="7" required> días
+      <button>Renovar</button>
+    </form>
+    <form method="post" action="/links/{{ link.id }}/revoke">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="danger">Revocar el enlace</button>
+      <span class="hint">Corta también las descargas pendientes de reanudar.</span>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Ficheros</h2>
+<table>
+  <thead><tr><th></th><th>Nombre</th><th class="num">Tamaño</th><th class="num">Descargas</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for lf in files %}
+  <tr>
+    <td><img class="thumb" src="/thumb/{{ lf.file_id }}" alt="" loading="lazy"></td>
+    <td class="name"><a href="/files/{{ lf.file_id }}">{{ lf.name }}</a><br><span class="muted">{{ lf.root }}</span></td>
+    <td class="num">{{ lf.size_bytes|size }}</td>
+    <td class="num">{{ per_file.get(lf.id, 0) }}</td>
+    <td>{% if lf.present %}<span class="tag ok">disponible</span>{% else %}<span class="tag bad">ya no está en disco</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if link.mode == "request" %}
+<h2>Solicitudes de acceso</h2>
+<p class="hint">El nombre y la nota los escribe el visitante: no son una identidad verificada. Aprueba solo a quien sepas por otro canal que lo ha pedido. Las solicitudes sin contestar caducan a los {{ request_ttl_days }} días.</p>
+<table>
+  <thead><tr><th>Nombre</th><th>Nota</th><th>Pedido</th><th>Desde</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for r in requests %}
+  <tr>
+    <td>{{ r.name }}</td>
+    <td><pre class="plain">{{ r.note }}</pre></td>
+    <td>{{ r.created_at|local }}</td>
+    <td class="small"><span class="name">{{ r.ip or "" }}</span><br><span class="muted">{{ r.user_agent }}</span></td>
+    <td>{% if r.status == "pending" %}<span class="tag warn">pendiente</span>{% elif r.status == "approved" %}<span class="tag ok">aprobada</span>{% else %}<span class="tag">rechazada</span>{% endif %}</td>
+    <td>{% if r.status == "pending" and active %}<a class="button" href="/requests/{{ r.id }}">Resolver</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Nadie ha pedido acceso todavía.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Concesiones</h2>
+<table>
+  <thead><tr><th>Persona</th><th>Aprobada</th><th>Caduca</th><th class="num">Descargas</th><th>IPs distintas</th><th>Navegadores distintos</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for g in grants %}
+  {% set use = by_grant.get(g.id) %}
+  <tr{% if use and (use.ips|length > 1 or use.agents|length > 1) %} class="warnrow"{% endif %}>
+    <td>{{ g.name }}</td>
+    <td>{{ g.created_at|local }}</td>
+    <td>{{ g.expires_at|local }}</td>
+    <td class="num">{{ use.downloads if use else 0 }}</td>
+    <td>{{ use.ips|length if use else 0 }}{% if use and use.ips|length > 1 %} <span class="tag warn">¿código reenviado?</span>{% endif %}</td>
+    <td>{{ use.agents|length if use else 0 }}</td>
+    <td>{% if g.revoked_at %}<span class="tag bad">revocada</span>{% elif g.expires_at <= now %}<span class="tag">caducada</span>{% else %}<span class="tag ok">vigente</span>{% endif %}</td>
+    <td>{% if not g.revoked_at %}<form method="post" action="/grants/{{ g.id }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Revocar</button></form>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="muted">Ninguna.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Descargas</h2>
+<p class="hint">Cada fila es una descarga iniciada (un ticket). Las reanudaciones del mismo ticket cuentan como peticiones dentro de la misma descarga.</p>
+<table data-sortable>
+  <thead><tr><th data-sort="text">Cuándo</th><th data-sort="text">Fichero</th>{% if link.mode == "request" %}<th data-sort="text">Persona</th>{% endif %}<th data-sort="text">IP</th><th data-sort="text">Navegador</th><th data-sort="num" class="num">Peticiones</th><th data-sort="text">Última petición</th></tr></thead>
+  <tbody>
+  {% for t in tickets %}
+  <tr>
+    <td data-value="{{ t.issued_at }}">{{ t.issued_at|local("%d/%m/%Y %H:%M:%S") }}</td>
+    <td class="name">{{ names.get(t.link_file_id, "?") }}</td>
+    {% if link.mode == "request" %}<td>{{ grant_names.get(t.grant_id, "—") }}</td>{% endif %}
+    <td class="name">{{ t.ip or "" }}</td>
+    <td class="small">{{ t.user_agent }}</td>
+    <td class="num">{{ t.requests }}</td>
+    <td>{{ t.last_request|local("%d/%m %H:%M:%S") if t.last_request else "sin empezar" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">Nadie ha descargado nada todavía.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

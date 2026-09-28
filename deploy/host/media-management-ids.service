@@ -1,0 +1,12 @@
+[Unit]
+Description=Exporta los IDs indexados por Jellyfin para media-management
+After=pve-guests.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/media-management-ids
+ExecStart=/usr/bin/python3 /usr/local/lib/media-management/jellyfin-ids-export.py
+Nice=10
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

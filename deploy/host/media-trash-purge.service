@@ -1,0 +1,35 @@
+[Unit]
+Description=Vacía la papelera de media-management (más de 30 días)
+# Ruta real del directorio de media en el host (la misma base que TRASH_DIR).
+RequiresMountsFor=/ruta/a/media
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/media-trash-purge
+ExecStart=/usr/local/lib/media-management/media-trash-purge.sh
+Nice=10
+# Solo puede escribir en la papelera: aunque algo lo desviara, el resto del sistema
+# (y el resto de la biblioteca) es de solo lectura para este servicio.
+ProtectSystem=strict
+ReadWritePaths=/ruta/a/media/.trash
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+NoNewPrivileges=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER

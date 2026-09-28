@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Enlaces{% endblock %}
+{% block content %}
+<h1>Enlaces de descarga</h1>
+<p class="toolbar">
+  {% if show == "active" %}<strong>Activos</strong> · <a href="/links?show=all">Todos</a>{% else %}<a href="/links">Activos</a> · <strong>Todos</strong>{% endif %}
+  <span class="grow"></span>
+  <span class="muted">Para crear uno, selecciona ficheros desde una raíz.</span>
+</p>
+<table data-sortable>
+  <thead><tr><th data-sort="text">Título</th><th data-sort="text">Acceso</th><th data-sort="num" class="num">Ficheros</th>
+    <th data-sort="num" class="num">Descargas</th><th data-sort="text">Última</th><th data-sort="text">Creado</th><th data-sort="text">Caduca</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for l in links %}
+  <tr>
+    <td><a href="/links/{{ l.id }}">{{ l.title }}</a>{% if pending.get(l.id) %} <span class="tag warn">{{ pending[l.id] }} pendiente{% if pending[l.id] != 1 %}s{% endif %}</span>{% endif %}</td>
+    <td>{% if l.mode == "open" %}abierto{% elif l.mode == "password" %}contraseña{% else %}solicitud{% endif %}</td>
+    <td class="num">{{ l.nfiles }}</td>
+    <td class="num">{{ stats[l.id].tickets }}</td>
+    <td data-value="{{ stats[l.id].last or '' }}">{{ stats[l.id].last|ago if stats[l.id].last else "—" }}</td>
+    <td data-value="{{ l.created_at }}">{{ l.created_at|local }}</td>
+    <td data-value="{{ l.expires_at }}">{{ l.expires_at|local }}</td>
+    <td>{% if l.revoked_at %}<span class="tag bad">revocado</span>{% elif l.expires_at <= now %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="muted">No hay enlaces.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

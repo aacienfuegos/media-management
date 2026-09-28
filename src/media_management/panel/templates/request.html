@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Solicitud de {{ req.name }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/requests">Solicitudes</a> / <a href="/links/{{ link.id }}">{{ link.title }}</a></p>
+<h1>Solicitud de acceso</h1>
+<div class="grid2">
+  <table class="kv">
+    <tr><th>Dice llamarse</th><td>{{ req.name }}</td></tr>
+    <tr><th>Nota</th><td><pre class="plain">{{ req.note or "—" }}</pre></td></tr>
+    <tr><th>Pedido</th><td>{{ req.created_at|local }} <span class="muted">({{ req.created_at|ago }})</span></td></tr>
+    <tr><th>IP</th><td class="name">{{ req.ip or "—" }}{% if same_ip %} <span class="tag warn">{{ same_ip }} solicitud{% if same_ip != 1 %}es{% endif %} más desde esta IP</span>{% endif %}</td></tr>
+    <tr><th>Navegador</th><td class="small">{{ req.user_agent or "—" }}</td></tr>
+    <tr><th>Enlace</th><td><a href="/links/{{ link.id }}">{{ link.title }}</a>, caduca {{ link.expires_at|local }}</td></tr>
+  </table>
+  <div class="panel stack">
+    <p class="hint">El nombre lo ha escrito el visitante. Lo que apruebas es "la concesión a quien dijo llamarse {{ req.name }}": cada descarga quedará asociada a ella, con IP y navegador.</p>
+    {% if active %}
+    <form method="post" action="/requests/{{ req.id }}/approve" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="days">Acceso durante (días)</label>
+      <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="{{ default_days }}" required>
+      <p class="hint">Por defecto, lo que le queda al enlace. Nunca va más allá de la caducidad del enlace.</p>
+      <button class="primary">Aprobar</button>
+    </form>
+    {% else %}
+    <p class="banner warn">El enlace ya no está activo: no se puede aprobar.</p>
+    {% endif %}
+    <form method="post" action="/requests/{{ req.id }}/reject">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="danger">Rechazar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Manifiesto{% endblock %}
+{% block content %}
+<h1>Manifiesto</h1>
+<p class="muted">Lo mismo que lee TripPlanner, clip a clip. Contrato v1: la identidad de cada clip es su <code>jellyfin_path</code>.</p>
+{% if status %}
+<div class="banner {% if status.written %}ok{% else %}bad{% endif %}">
+  {% if status.written %}Generado {{ status.at|ago }} y escrito en <code>{{ status.path or "(sin fichero configurado)" }}</code>.
+  {% else %}Última pasada {{ status.at|ago }} sin escribir: {{ status.problem }}.{% if status.last_written_at %} Se conserva el de {{ status.last_written_at|local }}, más viejo pero cierto.{% endif %}{% endif %}
+</div>
+{% if status.without_date_names %}
+<div class="banner warn">Fuera del manifiesto por falta de fecha fiable: {% for n in status.without_date_names %}<span class="name">{{ n }}</span>{% if not loop.last %}, {% endif %}{% endfor %}.</div>
+{% endif %}
+{% if status.odd_names %}
+<div class="banner warn">Nombres fuera del formato de la cámara (se incluyen igualmente): {% for n in status.odd_names %}<span class="name">{{ n }}</span>{% if not loop.last %}, {% endif %}{% endfor %}.</div>
+{% endif %}
+{% endif %}
+{% if doc %}
+<div class="toolbar">
+  <input type="search" data-filter="clips" placeholder="Filtrar" class="grow">
+  <span class="muted">{{ doc.clips|length }} clips · generado {{ doc.generated_at|local }}</span>
+</div>
+<table id="clips" data-sortable>
+  <thead><tr>
+    <th data-sort="text">jellyfin_path</th><th data-sort="text">jellyfin_item_id</th><th data-sort="text">kind</th>
+    <th data-sort="text">captured_at_utc</th><th data-sort="text">Madrid</th><th data-sort="num" class="num">size_bytes</th>
+    <th data-sort="text">Origen de la fecha</th><th data-sort="num" class="num">Duración</th>
+  </tr></thead>
+  <tbody>
+  {% for c in doc.clips %}
+  <tr>
+    <td class="name">{{ c.jellyfin_path }}</td>
+    <td class="name">{% if c.jellyfin_item_id %}{{ c.jellyfin_item_id }}{% else %}<span class="tag warn">null</span>{% endif %}</td>
+    <td>{{ c.kind }}</td>
+    <td class="name">{{ c.captured_at_utc }}</td>
+    <td data-value="{{ c.captured_at_utc }}">{{ c.captured_at_utc|local }}</td>
+    <td class="num" data-value="{{ c.size_bytes }}">{{ c.size_bytes|size }}</td>
+    <td class="small">{{ c.captured_at_source }}</td>
+    <td class="num" data-value="{{ c.duration_s or 0 }}">{{ c.duration_s|duration if c.duration_s else "—" }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Todavía no se ha generado ningún manifiesto.</p>
+{% endif %}
+{% endblock %}

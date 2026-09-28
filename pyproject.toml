@@ -1,0 +1,48 @@
+[project]
+name = "media-management"
+version = "0.1.0"
+description = "Panel de biblioteca de media y enlaces de descarga"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "pydantic-settings",
+    "aiosqlite",
+    "httpx",
+    "argon2-cffi",
+    "python-multipart",
+]
+
+[project.scripts]
+media-management = "media_management.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pip-audit",
+    "mypy",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/media_management"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:starlette.testclient", "ignore:Using `httpx`"]
+markers = [
+    "local: prueba contra datos reales de fixtures/local (se salta si no están)",
+    "docker: necesita Docker",
+]
+
+[tool.mypy]
+strict = true
+files = ["src"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

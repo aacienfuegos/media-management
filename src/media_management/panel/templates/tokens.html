@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Tokens de API{% endblock %}
+{% block content %}
+<h1>Tokens de API</h1>
+<p class="muted">Tokens de solo lectura para integraciones (catálogo y manifiesto de <code>/api/v1</code>). No crean enlaces, no borran y no renombran.</p>
+{% if new_token %}
+<div class="banner ok stack">
+  <p><strong>Token «{{ new_name }}» creado.</strong> Cópialo ahora: no se vuelve a mostrar y no se puede recuperar.</p>
+  <p><code class="secret" id="new-token">{{ new_token }}</code> <button type="button" data-copy="new-token">Copiar</button></p>
+</div>
+{% endif %}
+<form method="post" action="/tokens" class="panel toolbar">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input name="name" required maxlength="80" placeholder="Nombre (p. ej. tripplanner)" class="grow">
+  <button class="primary">Crear token</button>
+</form>
+<table>
+  <thead><tr><th>Nombre</th><th>Creado</th><th>Último uso</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tokens %}
+  <tr>
+    <td>{{ t.name }}</td>
+    <td>{{ t.created_at|local }} <span class="muted">por {{ t.created_by }}</span></td>
+    <td>{{ t.last_used_at|ago }}</td>
+    <td>{% if t.revoked_at %}<span class="tag bad">revocado {{ t.revoked_at|local }}</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>
+    <td>{% if not t.revoked_at %}<form method="post" action="/tokens/{{ t.id }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Revocar</button></form>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">No hay tokens.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

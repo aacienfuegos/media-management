@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{% block title %}Media{% endblock %} · media</title>
+<link rel="stylesheet" href="/static/panel.css">
+<script src="/static/panel.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">media</a>
+  <nav>
+    {% for name in roots %}<a href="/roots/{{ name }}">{{ name }}</a>{% endfor %}
+    <a href="/manifest">Manifiesto</a>
+    <a href="/links">Enlaces</a>
+    <a href="/requests">Solicitudes</a>
+    <a href="/trash">Papelera</a>
+    <a href="/tokens">Tokens API</a>
+    <a href="/audit">Registro</a>
+  </nav>
+  <span class="who">{{ user }}</span>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

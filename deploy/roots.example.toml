@@ -1,0 +1,35 @@
+# Raíces de la biblioteca. Las rutas son las de dentro del contenedor (el
+# directorio de media del host se monta en /media). La clave de cada raíz es el
+# nombre de su carpeta en disco: cambiarla cambia la identidad de los ficheros.
+
+[[roots]]
+name = "buceo"
+path = "/media/buceo"
+shareable = true
+deletable = true
+renamable = false
+synced = true
+requires_second_copy = true
+indexed_by_jellyfin = true
+jellyfin_path = "/ruta/de/la/biblioteca/en/jellyfin/buceo"
+in_manifest = true
+metadata_profile = "dji"
+
+[[roots]]
+name = "originales-120fps"
+path = "/media/originales-120fps"
+shareable = true
+deletable = true
+renamable = false
+synced = true
+requires_second_copy = true
+metadata_profile = "dji"
+thumbnail_from = "buceo"
+
+[[roots]]
+name = "send"
+path = "/media/send"
+shareable = true
+deletable = true
+renamable = true
+metadata_profile = "generic"

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Solicitudes{% endblock %}
+{% block content %}
+<h1>Solicitudes de acceso</h1>
+<p class="hint">El nombre y la nota los escribe quien pide acceso: son texto de un desconocido, no una identidad verificada. Aprueba solo si sabes por otro canal quién es.</p>
+<h2>Pendientes</h2>
+<table>
+  <thead><tr><th>Nombre</th><th>Nota</th><th>Enlace</th><th>Pedido</th><th>Desde</th><th></th></tr></thead>
+  <tbody>
+  {% for r in pending %}
+  <tr>
+    <td>{{ r.name }}</td>
+    <td><pre class="plain">{{ r.note }}</pre></td>
+    <td><a href="/links/{{ r.link_id }}">{{ titles[r.link_id] }}</a></td>
+    <td>{{ r.created_at|local }} <span class="muted">({{ r.created_at|ago }})</span></td>
+    <td class="name">{{ r.ip or "" }}</td>
+    <td><a class="button primary" href="/requests/{{ r.id }}">Resolver</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">No hay solicitudes pendientes.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<h2>Recientes</h2>
+<table>
+  <thead><tr><th>Nombre</th><th>Enlace</th><th>Pedido</th><th>Estado</th><th>Resuelto</th></tr></thead>
+  <tbody>
+  {% for r in recent %}
+  <tr>
+    <td>{{ r.name }}</td>
+    <td><a href="/links/{{ r.link_id }}">{{ titles[r.link_id] }}</a></td>
+    <td>{{ r.created_at|local }}</td>
+    <td>{% if r.status == "approved" %}<span class="tag ok">aprobada</span>{% elif r.status == "rejected" %}<span class="tag">rechazada</span>{% else %}<span class="tag">caducada sin respuesta</span>{% endif %}</td>
+    <td>{{ r.resolved_at|local if r.resolved_at else "—" }}{% if r.resolved_by %} <span class="muted">por {{ r.resolved_by }}</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Nada todavía.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
