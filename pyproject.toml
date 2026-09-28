@@ -12,6 +12,7 @@ dependencies = [
     "httpx",
     "argon2-cffi",
     "python-multipart",
+    "zipstream-ng>=1.9.3",
 ]
 
 [project.scripts]

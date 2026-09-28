@@ -55,9 +55,13 @@ server {
         proxy_pass http://${PUBLIC_UPSTREAM};
     }
 
+    # El zip lo genera la app y sale por aquí, no por /_protected/: mismo límite de
+    # velocidad, y sin volcar a disco temporal un zip de varios GB.
     location /download/ {
         limit_req zone=mm_page burst=60 nodelay;
         limit_conn mm_conn ${DOWNLOAD_CONN_PER_IP};
+        limit_rate ${DOWNLOAD_RATE};
+        proxy_max_temp_file_size 0;
         proxy_pass http://${PUBLIC_UPSTREAM};
     }
 

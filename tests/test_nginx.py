@@ -1,5 +1,6 @@
 """nginx de verdad delante del proceso público: IP real, X-Accel-Redirect, Range y
 límites por IP. Necesita Docker; se salta sin él."""
+import io
 import os
 import shutil
 import socket
@@ -7,6 +8,7 @@ import subprocess
 import threading
 import time
 import uuid
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from urllib.parse import quote
@@ -123,6 +125,23 @@ def test_download_through_nginx(stack: tuple[Env, TestClient, str]) -> None:
     assert '"uri":"/download/<ticket>"' in logs and logs.count('"uri":"/_protected/send/viaje/') == 2
     assert client.get("/_protected/viaje/" + quote("clip grande ñ.mp4")).status_code == 404
     assert client.get("/_protected/../roots.toml").status_code in (400, 404)
+
+
+def test_zip_through_nginx_is_rate_limited(stack: tuple[Env, TestClient, str]) -> None:
+    env, panel, base = stack
+    files = {"uno.bin": os.urandom(300_000), "dos/dos.bin": os.urandom(300_000)}
+    ids = send_files(env, files)
+    token, _ = create_link(panel, list(ids.values()), title="Viaje")
+    client = httpx.Client(base_url=base, headers={"X-Forwarded-For": "203.0.113.5"}, timeout=30)
+    url = client.post("/api/zip", json={"token": token}).json()["url"]
+    start = time.monotonic()
+    r = client.get(url)
+    elapsed = time.monotonic() - start
+    assert r.status_code == 200 and int(r.headers["content-length"]) == len(r.content)
+    assert r.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        assert {n: zf.read(n) for n in zf.namelist()} == {"uno.bin": files["uno.bin"], "dos.bin": files["dos/dos.bin"]}
+    assert elapsed > 1.5
 
 
 def test_connection_limit_is_per_client_ip(stack: tuple[Env, TestClient, str]) -> None:

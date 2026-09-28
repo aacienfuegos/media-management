@@ -41,8 +41,11 @@ solo lectura (por URI y por montaje) y solo escribe en `public.db`.
   ligado al enlace, al fichero y a la credencial, que dura 4 horas (o menos, si el
   enlace caduca antes) para poder reanudar. Cada petición, también cada `Range`,
   vuelve a comprobar que el enlace y la concesión siguen vivos.
-- **Los bytes no pasan por Python**: nginx los sirve por `X-Accel-Redirect` desde una
-  `location internal`.
+- **Los bytes de cada fichero no pasan por Python**: nginx los sirve por
+  `X-Accel-Redirect` desde una `location internal`. La excepción es "descargar todo en
+  zip": la app genera un zip sin compresión en streaming, con el mismo tipo de ticket
+  (que cubre todo el enlace), con el mismo límite de velocidad de nginx y sin poder
+  reanudarse. Por eso la página ofrece también descargar todos los ficheros por separado.
 - **El cliente nunca manda rutas**, solo identificadores; la ruta sale de la BD y se
   valida con `realpath` contra la raíz.
 - **La app mueve, nunca desenlaza.** Borrar es un `rename` sin sobrescritura a una
