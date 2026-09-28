@@ -4,30 +4,56 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
 <title>{% block title %}Media{% endblock %} · media</title>
 <link rel="stylesheet" href="/static/panel.css">
+<script src="/static/theme.js"></script>
 <script src="/static/panel.js" defer></script>
 </head>
 <body>
+<a class="skip" href="#main">Saltar al contenido</a>
 <header class="top">
-  <a class="brand" href="/">media</a>
+  <a class="brand" href="/" aria-label="media, inicio"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v2h2V5H4Zm4 0v2h2V5H8Zm4 0v2h2V5h-2Zm4 0v2h2V5h-2ZM4 17v2h2v-2H4Zm4 0v2h2v-2H8Zm4 0v2h2v-2h-2Zm4 0v2h2v-2h-2ZM4 9v6h16V9H4Zm6 1.2 4.5 1.8-4.5 1.8v-3.6Z"/></svg><span>media</span></a>
   {% set path = request.url.path %}
-  {% macro tab(href, label, also=()) %}<a href="{{ href }}"{% if path == href or path.startswith(href ~ '/') or path.startswith(also) %} aria-current="page"{% endif %}>{{ label }}</a>{% endmacro %}
-  <nav>
-    {{ tab('/library', 'Biblioteca', ('/files/',)) }}
-    {{ tab('/links', 'Enlaces') }}
-    {{ tab('/requests', 'Solicitudes') }}
-    {{ tab('/trash', 'Papelera') }}
+  {% macro tab(href, label, also=(), key="") %}<a href="{{ href }}"{% if path == href or path.startswith(href ~ '/') or path.startswith(also) %} aria-current="page"{% endif %}{% if key %} aria-keyshortcuts="g {{ key }}"{% endif %}>{{ label }}</a>{% endmacro %}
+  <nav class="nav" aria-label="Principal">
+    {{ tab('/library', 'Biblioteca', ('/files/',), 'b') }}
+    {{ tab('/links', 'Enlaces', (), 'e') }}
+    {{ tab('/requests', 'Solicitudes', (), 's') }}
+    {{ tab('/trash', 'Papelera', (), 'p') }}
   </nav>
-  <nav class="secondary">
-    {{ tab('/manifest', 'Manifiesto') }}
-    {{ tab('/tokens', 'Tokens API') }}
-    {{ tab('/audit', 'Registro') }}
-  </nav>
-  <span class="who">{{ user }}</span>
+  <details class="more">
+    <summary>Más</summary>
+    <nav aria-label="Administración">
+      {{ tab('/manifest', 'Manifiesto') }}
+      {{ tab('/tokens', 'Tokens API') }}
+      {{ tab('/audit', 'Registro') }}
+      <button type="button" class="linklike js-only" data-open="shortcuts">Atajos de teclado <kbd>?</kbd></button>
+      <div class="theme js-only" role="group" aria-label="Tema">
+        <button type="button" data-theme-choice="system">Sistema</button>
+        <button type="button" data-theme-choice="light">Claro</button>
+        <button type="button" data-theme-choice="dark">Oscuro</button>
+      </div>
+      <span class="who">Sesión: {{ user }}</span>
+    </nav>
+  </details>
 </header>
-<main>
+<main id="main" tabindex="-1">
+{% if flash %}<div class="flash" role="status"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg><span>{{ flash }}</span></div>{% endif %}
 {% block content %}{% endblock %}
 </main>
+<dialog class="shortcuts" id="shortcuts" aria-labelledby="shortcuts-title">
+  <h2 id="shortcuts-title">Atajos de teclado</h2>
+  <dl>
+    <dt><kbd>/</kbd></dt><dd>Buscar en la Biblioteca</dd>
+    <dt><kbd>g</kbd> <kbd>b</kbd></dt><dd>Biblioteca</dd>
+    <dt><kbd>g</kbd> <kbd>e</kbd></dt><dd>Enlaces</dd>
+    <dt><kbd>g</kbd> <kbd>s</kbd></dt><dd>Solicitudes</dd>
+    <dt><kbd>g</kbd> <kbd>p</kbd></dt><dd>Papelera</dd>
+    <dt><kbd>Mayús</kbd> + clic</dt><dd>Seleccionar un rango de ficheros</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Quitar la selección</dd>
+  </dl>
+  <form method="dialog"><button class="btn">Cerrar</button></form>
+</dialog>
 </body>
 </html>

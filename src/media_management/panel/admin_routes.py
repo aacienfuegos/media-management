@@ -6,7 +6,8 @@ from fastapi.responses import RedirectResponse, Response
 
 from media_management.db import now_iso
 from media_management.logs import audit
-from media_management.panel.deps import CsrfUser, MainDb, PublicDb, User, client_ip, render
+from media_management.panel.audit_labels import RESULTS, action_label, detail_items, grouped_actions
+from media_management.panel.deps import TEMPLATES, CsrfUser, MainDb, PublicDb, User, client_ip, render
 from media_management.security import hash_token, new_token, token_ref
 
 router = APIRouter()
@@ -46,7 +47,7 @@ async def revoke_token(request: Request, token_id: int, user: CsrfUser, conn: Ma
                        (now_iso(), token_id))
     await audit(conn, user, "api_token_revoked", "ok", target=token_ref(row[0]), ip=client_ip(request))
     await conn.commit()
-    return RedirectResponse("/tokens", status_code=303)
+    return RedirectResponse("/tokens?hecho=token_revoked", status_code=303)
 
 
 @router.get("/audit")
@@ -73,11 +74,16 @@ async def audit_view(request: Request, user: User, conn: MainDb, pconn: PublicDb
     rows.sort(key=lambda r: r["ts"], reverse=True)
     start = per_page * (page - 1)
     shown = rows[start:start + per_page]
+    size, local = TEMPLATES.env.filters["size"], TEMPLATES.env.filters["local"]
     for entry in shown:
-        entry["detail_obj"] = json.loads(entry["detail"]) if entry["detail"] else None
+        detail = json.loads(entry["detail"]) if entry["detail"] else {}
+        entry.setdefault("link_id", detail.get("link_id"))
+        entry["label"] = action_label(entry["action"])
+        entry["result_label"] = RESULTS.get(entry["result"], entry["result"])
+        entry["items"] = detail_items(detail, size, local)
     async with conn.execute("SELECT DISTINCT action FROM audit") as cur:
         actions = {r[0] for r in await cur.fetchall()}
     async with pconn.execute("SELECT DISTINCT action FROM events") as cur:
         actions |= {r[0] for r in await cur.fetchall()}
-    return render(request, user, "audit.html", rows=shown, action=action, actions=sorted(actions),
+    return render(request, user, "audit.html", rows=shown, action=action, groups=grouped_actions(actions),
                   page=page, more=len(rows) > start + per_page)

@@ -1,52 +1,78 @@
 {% extends "base.html" %}
 {% block title %}Nuevo enlace{% endblock %}
 {% block content %}
-<h1>Nuevo enlace de descarga</h1>
-{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+<nav class="crumbs" aria-label="Ubicación"><a href="/links">Enlaces</a></nav>
+<div class="page-head"><h1>Nuevo enlace de descarga</h1></div>
+{% if error %}<div class="banner bad" role="alert">{{ error }}</div>{% endif %}
 {% if not files %}
-<p class="muted">No hay ficheros seleccionados. Elige uno o varios desde una raíz compartible.</p>
+<div class="panel empty">
+  <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path fill="currentColor" d="M7 7h4v2H7a3 3 0 0 0 0 6h4v2H7A5 5 0 0 1 7 7Zm6 0h4a5 5 0 0 1 0 10h-4v-2h4a3 3 0 0 0 0-6h-4V7Zm-5 4h8v2H8v-2Z"/></svg>
+  <strong>No hay ficheros seleccionados</strong>
+  <p>Un enlace se crea desde la Biblioteca: marca uno o varios ficheros de una raíz compartible y pulsa <em>Crear enlace de descarga</em>.</p>
+  <a class="btn primary" href="/library">Ir a la Biblioteca</a>
+</div>
 {% else %}
-<form method="post" action="/links" class="grid2">
+<form method="post" action="/links" class="grid-side link-form">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="panel">
-    <label for="title">Título</label>
-    <input id="title" name="title" maxlength="120" value="{{ title }}" placeholder="{% if files|length == 1 %}{{ files[0].name }}{% else %}{{ files|length }} ficheros{% endif %}" class="wide">
-    <p class="hint">Lo verá quien abra el enlace.</p>
-
-    <label for="mode">Acceso</label>
-    <select id="mode" name="mode" data-mode>
-      <option value="open" {% if mode == "open" %}selected{% endif %}>Abierto: quien tenga el enlace</option>
-      <option value="password" {% if mode == "password" %}selected{% endif %}>Contraseña: enlace + una clave común</option>
-      <option value="request" {% if mode == "request" %}selected{% endif %}>Por solicitud: enlace + tu aprobación, persona a persona</option>
-    </select>
-    <div data-show-mode="password">
-      <label for="password">Contraseña</label>
-      <input id="password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" data-required-when-shown>
-      <p class="hint">Mínimo 8 caracteres. Compártela por un canal distinto al del enlace.</p>
-    </div>
-    <div data-show-mode="request">
-      <p class="hint">Quien abra el enlace podrá pedir acceso con su nombre y recibirá un código personal. Tú apruebas o rechazas cada solicitud aquí, y ves quién descarga qué. El nombre lo escribe el visitante: no es una identidad verificada.</p>
+    <div class="field">
+      <label for="title">Título</label>
+      <input id="title" name="title" maxlength="120" value="{{ title }}" placeholder="Ej.: {% if files|length == 1 %}{{ files[0].name }}{% else %}{{ files|length }} ficheros{% endif %}" class="wide">
+      <p class="hint">Lo verá quien abra el enlace. Si lo dejas vacío se usa el texto de ejemplo.</p>
     </div>
 
-    <label for="days">Caduca en (días)</label>
-    <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="{{ default_days }}" required>
-    <p class="hint">Obligatorio, máximo {{ max_days }}. Se puede renovar desde aquí.</p>
+    <fieldset class="choices">
+      <legend>¿Quién puede descargar?</legend>
+      <label class="choice"><input type="radio" name="mode" value="open" {% if mode == "open" %}checked{% endif %}>
+        <span><strong>Cualquiera con el enlace</strong><span>Lo más cómodo para quien lo recibe.</span></span></label>
+      <label class="choice"><input type="radio" name="mode" value="password" {% if mode == "password" %}checked{% endif %}>
+        <span><strong>Con contraseña</strong><span>El enlace más una clave común que mandas por otro canal.</span></span></label>
+      <label class="choice"><input type="radio" name="mode" value="request" {% if mode == "request" %}checked{% endif %}>
+        <span><strong>Por solicitud</strong><span>Cada persona pide acceso y tú lo apruebas aquí.</span></span></label>
+    </fieldset>
+    <div class="reveal" data-show-mode="password">
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" data-required-when-shown class="wide">
+        <p class="hint">Mínimo 8 caracteres. Compártela por un canal distinto al del enlace.</p>
+      </div>
+    </div>
+    <div class="reveal" data-show-mode="request">
+      <p class="hint">Quien abra el enlace escribe su nombre y recibe un código personal. Tú apruebas o rechazas cada solicitud en <em>Solicitudes</em> y ves quién descarga qué. El nombre lo escribe el visitante: no es una identidad verificada.</p>
+    </div>
+
+    <div class="field">
+      <label for="days">Caduca dentro de</label>
+      <div class="inline-fields">
+        <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="{{ default_days }}" required aria-describedby="days-hint"> <span>días</span>
+        <span class="presets js-only" aria-label="Atajos de caducidad">
+          <button type="button" data-days="1">1 día</button>
+          <button type="button" data-days="7">1 semana</button>
+          <button type="button" data-days="30">1 mes</button>
+          <button type="button" data-days="{{ max_days }}">Máximo</button>
+        </span>
+      </div>
+      <p class="hint" id="days-hint">Obligatorio, máximo {{ max_days }}. Se puede renovar después.</p>
+    </div>
 
     {% if files|length >= 2 %}
-    <label><input type="checkbox" name="zip" value="true" {% if zip %}checked{% endif %}> Ofrecer también un ZIP con todo</label>
-    <p class="hint">Se genera en segundo plano y ocupa lo mismo que los ficheros mientras el enlace esté vivo. Sin él, se descarga fichero a fichero.</p>
+    <div class="field">
+      <label class="check"><input type="checkbox" name="zip" value="true" {% if zip %}checked{% endif %}> Ofrecer también un ZIP con todo</label>
+      <p class="hint">Se genera en segundo plano y ocupa lo mismo que los ficheros mientras el enlace esté vivo. Sin él, se descarga fichero a fichero.</p>
+    </div>
     {% endif %}
 
-    <p><button class="primary">Crear enlace</button></p>
+    <button class="primary">Crear enlace</button>
+    <a class="btn ghost" href="/library">Cancelar</a>
   </div>
-  <div>
-    <h2>{{ files|length }} fichero{% if files|length != 1 %}s{% endif %}</h2>
+  <div class="table-wrap">
     <table>
+      <thead><tr><th colspan="2">{{ files|length }} fichero{% if files|length != 1 %}s{% endif %}</th><th class="num">{{ files|sum(attribute="size_bytes")|size }}</th></tr></thead>
       <tbody>
       {% for f in files %}
       <tr>
-        <td><input type="hidden" name="file_id" value="{{ f.id }}"><img class="thumb" src="/thumb/{{ f.id }}" alt=""></td>
-        <td class="name">{{ f.name }}<br><span class="muted">{{ f.root }}</span></td>
+        <td class="cell-thumb"><input type="hidden" name="file_id" value="{{ f.id }}"><img class="thumb" src="/thumb/{{ f.id }}" alt=""></td>
+        <td><span class="name">{{ f.name }}</span><span class="sub">{{ f.root }}</span></td>
         <td class="num">{{ f.size_bytes|size }}</td>
       </tr>
       {% endfor %}

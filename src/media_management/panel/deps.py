@@ -32,7 +32,8 @@ def _size(n: int | None) -> str:
     size = float(n)
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if size < 1024 or unit == "TB":
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+            number = f"{size:.0f}" if unit == "B" else f"{size:.1f}".replace(".", ",")
+            return f"{number}\u00a0{unit}"
         size /= 1024
     return str(n)
 
@@ -140,8 +141,28 @@ async def require_csrf(request: Request, user: User) -> str:
 CsrfUser = Annotated[str, Depends(require_csrf)]
 
 
+# El aviso tras una acción viaja como clave en la URL de la redirección, nunca como
+# texto: así la URL no puede inyectar mensajes en el panel.
+FLASH = {
+    "scan": "Escaneo pedido. El worker lo hará en su próxima vuelta.",
+    "renewed": "Caducidad del enlace actualizada.",
+    "revoked": "Enlace revocado. Ya no se puede abrir ni reanudar ninguna descarga.",
+    "zip_enable": "ZIP activado. Se generará en segundo plano.",
+    "zip_disable": "ZIP retirado del enlace.",
+    "zip_regenerate": "El ZIP se volverá a generar.",
+    "approved": "Solicitud aprobada. Ya puede descargar con su código.",
+    "rejected": "Solicitud rechazada.",
+    "grant_revoked": "Acceso de esa persona revocado.",
+    "token_revoked": "Token revocado.",
+    "trashed": "Fichero movido a la papelera. Se puede restaurar desde aquí.",
+    "restored": "Fichero restaurado a su sitio.",
+    "renamed": "Fichero renombrado.",
+}
+
+
 def render(request: Request, user: str, template: str, status_code: int = 200, **ctx: Any) -> Response:
     ctx.setdefault("roots", roots_of(request))
+    ctx.setdefault("flash", FLASH.get(request.query_params.get("hecho", "")))
     return TEMPLATES.TemplateResponse(
         request, template,
         {"user": user, "csrf": csrf_token(settings_of(request).csrf_key, user), **ctx},

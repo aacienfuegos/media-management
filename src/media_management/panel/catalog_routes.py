@@ -106,9 +106,17 @@ async def file_view(request: Request, file_id: int, user: User, conn: MainDb) ->
 
 
 PLACEHOLDER = """<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+<title>{label}</title>
 <rect width="320" height="180" fill="#8b93a3" fill-opacity="0.18"/>
-<text x="160" y="96" font-family="sans-serif" font-size="22" fill="#8b93a3" text-anchor="middle">{label}</text>
+<path transform="translate(124 54) scale(3)" fill="#8b93a3" fill-rule="evenodd" d="{path}"/>
 </svg>"""
+
+ICON_PATHS = {
+    "video": "M4 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5l5 3.5V6l-5 3.5V7a2 2 0 0 0-2-2H4Z",
+    "photo": "M4 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4Zm4 3.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4ZM4 "
+             "18l5-6 3.5 4 2.5-3 5 5H4Z",
+    "other": "M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.5V9h5.5L13 3.5Z",
+}
 
 
 @router.get("/thumb/{file_id}")
@@ -126,7 +134,8 @@ async def thumb(request: Request, file_id: int, user: User, conn: MainDb) -> Res
             return Response(data, media_type="image/jpeg",
                             headers={"Cache-Control": "private, max-age=86400"})
     label = ICONS.get(f["kind"], "fichero") if item_id is None else "sin miniatura"
-    return Response(PLACEHOLDER.format(label=label), media_type="image/svg+xml",
+    svg = PLACEHOLDER.format(label=label, path=ICON_PATHS.get(f["kind"], ICON_PATHS["other"]))
+    return Response(svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "private, max-age=300"})
 
 

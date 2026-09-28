@@ -4,47 +4,7 @@
 // así no acaba en ningún access log ni en el Referer. Se manda en el cuerpo de un POST.
 // La credencial (contraseña o código) vive solo en memoria mientras la página está abierta.
 
-const app = document.getElementById("app");
 const state = { token: null, password: null, code: null };
-
-function el(tag, attrs, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs || {})) {
-    if (key === "class") node.className = value;
-    else if (key === "on") for (const [ev, fn] of Object.entries(value)) node.addEventListener(ev, fn);
-    else node.setAttribute(key, value);
-  }
-  for (const child of children) {
-    if (child === null || child === undefined || child === false) continue;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
-  }
-  return node;
-}
-
-function screen(...children) {
-  app.replaceChildren(el("div", { class: "card" }, ...children));
-}
-
-function message(title, text, ...extra) {
-  screen(el("h1", {}, title), el("p", { class: "muted" }, text), ...extra);
-}
-
-function formatSize(bytes) {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = bytes;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit++;
-  }
-  return (unit === 0 ? String(size) : size.toFixed(1).replace(".", ",")) + " " + units[unit];
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleString("es-ES", {
-    timeZone: "Europe/Madrid", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
-  });
-}
 
 async function post(path, body) {
   let response;
@@ -76,116 +36,206 @@ function credentials() {
 }
 
 async function openLink() {
-  screen(el("p", { class: "muted" }, "Cargando…"));
+  loading();
   const { status, data } = await post("/api/share", credentials());
   if (status === 200) return showFiles(data);
   if (status === 202 && data.status === "pending") return showPending();
   if (status === 401 && data.need === "password") return showPassword(data.error === "bad_credentials");
-  if (status === 401 && data.need === "code") return showCode(data.error === "bad_credentials");
-  if (status === 404) return message("Este enlace no está disponible", "Puede que haya caducado, que lo hayan retirado o que no esté completo.");
-  if (status === 429) return message("Demasiados intentos", "Espera unos minutos antes de volver a intentarlo.", retryButton());
-  return message("No se ha podido abrir el enlace", "Comprueba la conexión e inténtalo de nuevo.", retryButton());
+  if (status === 401 && data.need === "code") return showRequest(data.error === "bad_credentials");
+  if (status === 404) return message("link", "Este enlace ya no está disponible", "Puede que haya caducado o que lo hayan retirado. Si lo necesitas, pide a quien te lo envió uno nuevo.");
+  if (status === 429) return message("clock", "Demasiados intentos", "Por seguridad, espera unos minutos antes de volver a intentarlo.", retryButton());
+  return message("alert", "No se ha podido abrir el enlace", "Comprueba tu conexión a internet e inténtalo de nuevo.", retryButton());
 }
 
-function retryButton() {
-  return el("button", { type: "button", on: { click: openLink } }, "Reintentar");
+function retryButton(label = "Reintentar") {
+  return el("button", { type: "button", class: "primary block", on: { click: openLink } }, label);
+}
+
+function errorLine(text) {
+  return el("p", { class: "error", role: "alert" }, icon("alert", 18), text);
 }
 
 function showPassword(wrong) {
-  const input = el("input", { type: "password", id: "password", autocomplete: "current-password", required: "", maxlength: "256" });
+  document.title = "Contraseña";
+  const input = el("input", { type: "password", id: "password", autocomplete: "current-password", required: "", maxlength: "256",
+    "data-focus": "", ...(wrong ? { "aria-invalid": "true", "aria-describedby": "password-error" } : {}) });
+  const toggle = el("button", { type: "button", "aria-controls": "password", "aria-pressed": "false" }, "Mostrar");
+  toggle.addEventListener("click", () => {
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    toggle.textContent = show ? "Ocultar" : "Mostrar";
+    toggle.setAttribute("aria-pressed", String(show));
+    input.focus();
+  });
   const form = el("form", { on: { submit: (e) => { e.preventDefault(); state.password = input.value; openLink(); } } },
     el("label", { for: "password" }, "Contraseña"),
-    input,
-    wrong ? el("p", { class: "error" }, "Contraseña incorrecta.") : null,
-    el("button", { class: "primary" }, "Entrar"));
-  screen(el("h1", {}, "Este enlace tiene contraseña"),
-    el("p", { class: "muted" }, "Quien te lo ha enviado debería habértela dado por otro medio."), form);
-  input.focus();
+    el("div", { class: "with-toggle" }, input, toggle),
+    wrong ? el("p", { class: "error", id: "password-error", role: "alert" }, icon("alert", 18), "Esa contraseña no es correcta. Revísala e inténtalo otra vez.") : null,
+    el("button", { class: "primary block big" }, "Ver los archivos"));
+  screen({ center: true }, badge("lock"), el("h1", {}, "Este enlace tiene contraseña"),
+    el("p", { class: "muted" }, "Escribe la contraseña que te ha dado quien te envió el enlace."), form);
 }
 
-function showCode(wrong) {
-  state.code = null;
-  const codeInput = el("input", { id: "code", autocomplete: "off", autocapitalize: "characters", spellcheck: "false",
-    required: "", maxlength: "32", placeholder: "XXXXX-XXXXX" });
-  const codeForm = el("form", { on: { submit: (e) => { e.preventDefault(); state.code = codeInput.value; openLink(); } } },
+function codeForm(wrong) {
+  const input = el("input", { id: "code", class: "code-input", autocomplete: "off", autocapitalize: "characters", spellcheck: "false",
+    required: "", maxlength: "32", placeholder: "XXXXX-XXXXX", inputmode: "text",
+    ...(wrong ? { "aria-invalid": "true", "data-focus": "" } : {}) });
+  return el("form", { on: { submit: (e) => { e.preventDefault(); state.code = input.value; openLink(); } } },
     el("label", { for: "code" }, "Tu código personal"),
-    codeInput,
-    wrong ? el("p", { class: "error" }, "Código no válido para este enlace.") : null,
-    el("button", { class: "primary" }, "Entrar"));
+    input,
+    wrong ? errorLine("Ese código no vale para este enlace. Revisa que esté completo.") : null,
+    el("button", { class: "primary block" }, "Entrar con mi código"));
+}
+
+function showRequest(wrongCode) {
+  state.code = null;
+  document.title = "Pedir acceso";
   const name = el("input", { id: "name", required: "", maxlength: "80", autocomplete: "name" });
-  const note = el("textarea", { id: "note", maxlength: "500", rows: "3" });
-  const requestForm = el("form", { on: { submit: (e) => { e.preventDefault(); requestAccess(name.value, note.value); } } },
+  const note = el("textarea", { id: "note", maxlength: "500", rows: "3", placeholder: "Por ejemplo: soy la prima de Ana" });
+  const send = el("button", { class: "primary block big" }, "Pedir acceso");
+  const requestForm = el("form", { on: { submit: (e) => { e.preventDefault(); send.disabled = true; requestAccess(name.value, note.value); } } },
     el("label", { for: "name" }, "Tu nombre"),
     name,
-    el("label", { for: "note" }, "Nota (opcional)"),
+    el("label", { for: "note" }, "Mensaje ", el("span", { class: "muted" }, "(opcional)")),
     note,
-    el("button", {}, "Pedir acceso"));
-  screen(el("h1", {}, "Acceso por solicitud"),
-    el("p", { class: "muted" }, "Para descargar necesitas que aprueben tu acceso. Si ya lo pediste, entra con tu código."),
-    el("section", {}, el("h2", {}, "Tengo un código"), codeForm),
-    el("section", {}, el("h2", {}, "Pedir acceso"),
-      el("p", { class: "muted" }, "Escribe tu nombre para que sepan quién eres. Recibirás un código personal."),
-      requestForm));
+    send);
+  const slot = el("div", { class: "alt" });
+  const reveal = el("button", { type: "button", class: "link" }, "Ya tengo un código");
+  reveal.addEventListener("click", () => {
+    slot.replaceChildren(codeForm(false));
+    slot.querySelector("input").focus();
+  });
+  slot.append(reveal);
+  if (wrongCode) slot.replaceChildren(codeForm(true));
+  screen({ center: true }, badge("person"), el("h1", {}, "Pide acceso para descargar"),
+    el("p", { class: "muted" }, "Quien compartió estos archivos quiere saber quién los descarga. Escribe tu nombre y recibirás un código personal para entrar cuando te lo aprueben."),
+    requestForm,
+    el("p", { class: "divider" }, "¿Ya lo pediste antes?"),
+    slot);
 }
 
 async function requestAccess(name, note) {
+  loading("Enviando la solicitud…");
   const { status, data } = await post("/api/request", { token: state.token, name, note });
   if (status === 200 && data.code) return showNewCode(data.code);
-  if (status === 429 && data.error === "queue_full") return message("Ahora mismo no se aceptan más solicitudes", "Hay demasiadas solicitudes pendientes para este enlace. Inténtalo más tarde.", retryButton());
-  if (status === 429) return message("Demasiadas solicitudes", "Espera un rato antes de volver a pedir acceso.", retryButton());
-  return message("No se ha podido enviar la solicitud", "Inténtalo de nuevo más tarde.", retryButton());
+  if (status === 429 && data.error === "queue_full") return message("clock", "Ahora no se aceptan más solicitudes", "Hay demasiadas solicitudes pendientes para este enlace. Inténtalo más tarde.", retryButton("Volver"));
+  if (status === 429) return message("clock", "Demasiadas solicitudes", "Espera un rato antes de volver a pedir acceso.", retryButton("Volver"));
+  if (status === 404) return openLink();
+  return message("alert", "No se ha podido enviar la solicitud", "Comprueba tu conexión e inténtalo de nuevo.", retryButton("Volver"));
 }
 
 function showNewCode(code) {
-  const saved = el("button", { class: "primary", type: "button", on: { click: () => { state.code = code; openLink(); } } },
+  document.title = "Solicitud enviada";
+  const copy = el("button", { type: "button", class: "block" }, "Copiar el código");
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      copy.replaceChildren(icon("check", 18), "Copiado");
+    } catch {
+      copy.textContent = "Mantén pulsado el código para copiarlo";
+    }
+  });
+  const saved = el("button", { class: "primary block big", type: "button", on: { click: () => { state.code = code; openLink(); } } },
     "Ya lo he guardado");
-  screen(el("h1", {}, "Solicitud enviada"),
+  screen({ center: true }, badge("check", "b-ok"), el("h1", {}, "Solicitud enviada"),
     el("p", {}, "Este es tu código personal:"),
-    el("p", { class: "code" }, code),
-    el("p", { class: "warning" }, "Guárdalo ahora. No se puede recuperar: si lo pierdes tendrás que volver a pedir acceso."),
-    el("p", { class: "muted" }, "Cuando aprueben tu solicitud, vuelve a abrir este mismo enlace e introduce el código, desde este o desde cualquier otro dispositivo."),
+    el("output", { class: "code", "aria-label": "Tu código personal" }, code),
+    copy,
+    el("div", { class: "notice", role: "note" }, icon("alert", 20),
+      el("span", {}, "Guárdalo ahora (una captura de pantalla vale). No se puede recuperar: si lo pierdes, tendrás que volver a pedir acceso.")),
+    el("p", { class: "muted small" }, "Cuando aprueben tu solicitud, abre de nuevo este mismo enlace y escribe el código. Sirve desde cualquier dispositivo."),
     saved);
 }
 
 function showPending() {
-  screen(el("h1", {}, "Pendiente de aprobar"),
-    el("p", { class: "muted" }, "Tu solicitud todavía no se ha aprobado. Vuelve a abrir este enlace más tarde con tu código."),
-    el("button", { type: "button", on: { click: openLink } }, "Comprobar de nuevo"));
+  document.title = "Pendiente de aprobar";
+  screen({ center: true }, badge("clock", "b-wait"), el("h1", {}, "Tu solicitud está pendiente"),
+    el("p", { class: "muted" }, "Todavía no la han aprobado. Vuelve a abrir este enlace más tarde y entra con tu código."),
+    retryButton("Comprobar de nuevo"));
+}
+
+const KINDS = { video: "Vídeo", photo: "Foto" };
+
+function thumbFor(row) {
+  const { file } = row;
+  if (!file.thumb) return el("div", { class: "thumb icon" }, icon(KINDS[file.kind] ? file.kind : "file", 28));
+  const button = el("button", { type: "button", class: "thumb-btn", "aria-label": `Ver ${file.name} en grande` },
+    el("img", { class: "thumb", src: file.thumb, alt: "" }), el("span", { class: "zoom" }, icon("zoom", 16)));
+  button.addEventListener("click", () => preview(row));
+  return button;
+}
+
+let previewDialog = null;
+
+function preview(row) {
+  const { file } = row;
+  if (!previewDialog) {
+    previewDialog = el("dialog", { class: "preview" });
+    previewDialog.addEventListener("click", (e) => { if (e.target === previewDialog) previewDialog.close(); });
+    document.body.append(previewDialog);
+  }
+  const dialog = previewDialog;
+  const close = el("button", { type: "button" }, "Cerrar");
+  const get = el("button", { type: "button", class: "primary" }, icon("download"), "Descargar");
+  close.addEventListener("click", () => dialog.close());
+  get.addEventListener("click", () => { dialog.close(); download(row); });
+  dialog.setAttribute("aria-label", file.name);
+  dialog.replaceChildren(
+    el("img", { src: file.thumb, alt: `Vista previa de ${file.name}` }),
+    el("div", { class: "preview-foot" },
+      el("div", {}, el("div", { class: "name" }, file.name),
+        el("div", { class: "info" }, `${KINDS[file.kind] || "Archivo"} · ${formatSize(file.size)}`)),
+      el("div", { class: "preview-actions" }, close, get)));
+  dialog.showModal();
+  get.focus();
 }
 
 function showFiles(data) {
-  const list = el("ul", { class: "files" });
-  const rows = [];
-  for (const file of data.files) {
-    const thumb = file.thumb
-      ? el("img", { class: "thumb", src: file.thumb, alt: "" })
-      : el("div", { class: "thumb icon" }, file.kind === "video" ? "Vídeo" : file.kind === "photo" ? "Foto" : "Fichero");
-    const status = el("span", { class: "status", role: "status" });
-    const button = el("button", { class: "primary", type: "button" }, "Descargar");
-    button.addEventListener("click", () => download(file, button, status));
-    rows.push({ file, button, status });
-    list.append(el("li", {}, thumb,
-      el("div", { class: "meta" }, el("span", { class: "name" }, file.name), el("span", { class: "muted" }, formatSize(file.size)), status),
-      button));
-  }
+  document.title = data.title;
+  const count = data.files.length;
   const total = data.files.reduce((sum, f) => sum + f.size, 0);
-  app.replaceChildren(el("div", { class: "card wide" },
+  const single = count === 1;
+  const rows = data.files.map((f) => fileRow(f, single, data.title));
+  const head = el("header", { class: "share-head" },
+    el("div", { class: "mark" }, icon("mark", 30)),
+    el("p", { class: "eyebrow" }, data.sender ? `${data.sender} te ha compartido ${single ? "este archivo" : "estos archivos"}` : `${single ? "Archivo compartido" : "Archivos compartidos"} contigo`),
     el("h1", {}, data.title),
-    el("p", { class: "muted" }, `${data.files.length} fichero${data.files.length === 1 ? "" : "s"} · ${formatSize(total)} · disponible hasta el ${formatDate(data.expires_at)}`),
-    data.files.length > 1 ? downloadAll(rows, data.zip) : null,
-    data.files.length ? list : el("p", { class: "muted" }, "Este enlace ya no tiene ficheros disponibles.")));
+    el("ul", { class: "meta" },
+      single ? null : el("li", {}, `${count} archivos · ${formatSize(total)}`),
+      el("li", {}, icon("clock", 16), `Disponible hasta el ${formatDate(data.expires_at)}`)));
+  const body = count === 0
+    ? el("p", { class: "muted" }, "Este enlace ya no tiene archivos disponibles.")
+    : el("ul", { class: single ? "files single" : "files", "aria-label": "Archivos" }, ...rows.map((r) => r.node));
+  screen({ wide: true }, head,
+    ...(count > 1 ? downloadAll(rows, data.zip) : []),
+    body,
+    count ? el("p", { class: "foot" }, "Si una descarga se corta, puedes reanudarla desde el navegador durante unas horas.") : null);
+}
+
+function fileRow(file, single, title) {
+  const status = el("p", { class: "status", role: "status" });
+  const button = el("button", { class: single ? "primary" : "soft", type: "button", "aria-label": `Descargar ${file.name}` },
+    icon("download"), el("span", { class: "label" }, "Descargar"));
+  const row = { file, button, status };
+  row.node = el("li", { class: "file" }, thumbFor(row),
+    el("div", {}, single && file.name.normalize() === title.normalize() ? null : el("div", { class: "name", title: file.name }, file.name),
+      el("div", { class: "info" }, `${KINDS[file.kind] || "Archivo"} · ${formatSize(file.size)}`), status),
+    button);
+  button.addEventListener("click", () => download(row));
+  return row;
 }
 
 function downloadAll(rows, zip) {
   const status = el("p", { class: "status", role: "status" });
-  const zipSlot = el("span");
-  const separate = el("button", { type: "button" }, "Descargar todo por separado");
+  const zipSlot = el("div", { class: "zip-slot" });
+  const separate = el("button", { type: "button", class: zip ? "link" : "primary big" }, zip ? "Descargarlos uno a uno" : "Descargar todos");
   separate.addEventListener("click", async () => {
     separate.disabled = true;
-    status.textContent = "Si el navegador pregunta si permites descargar varios ficheros, acepta.";
+    status.className = "status";
+    status.textContent = "Si el navegador pregunta si permites descargar varios archivos, acepta.";
     for (const row of rows) {
-      if (!await download(row.file, row.button, row.status)) {
-        status.textContent = "Se ha parado en " + row.file.name + ". Puedes seguir con los botones de cada fichero.";
+      if (!await download(row)) {
+        status.textContent = "Se ha parado en " + row.file.name + ". Puedes seguir con el botón de cada archivo.";
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -193,7 +243,9 @@ function downloadAll(rows, zip) {
     separate.disabled = false;
   });
   showZip(zipSlot, zip, status);
-  return el("div", { class: "all" }, el("div", { class: "actions" }, zipSlot, separate), status);
+  if (!zip) return [el("div", { class: "all" }, zipSlot, separate, status)];
+  return [el("div", { class: "all" }, zipSlot, status),
+    el("p", { class: "alt small muted separate" }, "¿Prefieres los archivos sueltos? ", separate)];
 }
 
 // Cada comprobación vuelve a validar la credencial (argon2 en los enlaces con
@@ -203,20 +255,26 @@ const ZIP_POLL_MAX_MS = 120000;
 const ZIP_POLL_ATTEMPTS = 8;
 
 function showZip(slot, zip, status, attempt = 0) {
+  slot.hidden = false;
   if (zip && zip.state === "ready") {
-    const button = el("button", { class: "primary", type: "button" }, `Descargar todo en ZIP (${formatSize(zip.size)})`);
+    const button = el("button", { class: "primary big", type: "button" }, icon("download"),
+      el("span", { class: "nowrap" }, "Descargar todo"), el("span", { class: "sub" }, "en un solo archivo"));
     button.addEventListener("click", () => downloadZip(button, status));
     slot.replaceChildren(button);
   } else if (zip && zip.state === "pending" && attempt < ZIP_POLL_ATTEMPTS) {
-    slot.replaceChildren(el("button", { type: "button", disabled: "" }, "Preparando el ZIP…"));
+    slot.replaceChildren(el("button", { type: "button", class: "primary big", disabled: "" },
+      el("span", { class: "spinner sm", "aria-hidden": "true" }), "Preparando la descarga de todo…"));
     const delay = Math.min(ZIP_POLL_FIRST_MS * 2 ** attempt, ZIP_POLL_MAX_MS);
     setTimeout(() => refreshZip(slot, status, attempt + 1), delay);
   } else if (zip && zip.state === "pending") {
-    const check = el("button", { type: "button" }, "Comprobar de nuevo");
+    const check = el("button", { type: "button", class: "big" }, "Aún se está preparando · comprobar");
     check.addEventListener("click", () => { check.disabled = true; refreshZip(slot, status, 0); });
-    slot.replaceChildren(el("span", { class: "muted small" }, "El ZIP aún se está preparando. "), check);
+    slot.replaceChildren(check);
+  } else if (zip === null && slot.closest(".all")?.nextElementSibling?.classList.contains("separate")) {
+    slot.replaceChildren(el("p", { class: "muted" }, "El archivo con todo no está disponible. Descárgalos uno a uno."));
   } else {
     slot.replaceChildren();
+    slot.hidden = true;
   }
 }
 
@@ -234,42 +292,57 @@ function startDownload(url) {
   a.remove();
 }
 
-async function downloadZip(button, status) {
-  button.disabled = true;
-  status.textContent = "Preparando…";
-  const { status: code, data } = await post("/api/zip", credentials());
-  button.disabled = false;
-  if (code === 200 && data.url) {
-    status.textContent = "Descarga del ZIP iniciada. Si se corta, puedes reanudarla desde el navegador durante unas horas.";
-    startDownload(data.url);
-    return;
-  }
-  if (code === 404) status.textContent = "El ZIP ya no está disponible. Vuelve a cargar la página.";
-  else if (code === 401 || code === 202) openLink();
+function report(status, code, what) {
+  status.className = "status bad";
+  if (code === 404) status.textContent = `${what} ya no está disponible. Vuelve a cargar la página.`;
   else if (code === 429) status.textContent = "Demasiados intentos. Espera unos minutos.";
   else status.textContent = "No se ha podido iniciar la descarga. Inténtalo de nuevo.";
 }
 
-async function download(file, button, status) {
+async function downloadZip(button, status) {
   button.disabled = true;
+  status.className = "status";
+  status.textContent = "Preparando la descarga…";
+  const { status: code, data } = await post("/api/zip", credentials());
+  button.disabled = false;
+  if (code === 200 && data.url) {
+    status.className = "status ok";
+    status.textContent = "Descarga iniciada: un solo archivo .zip con todo. Mira la barra o la carpeta de descargas de tu navegador.";
+    startDownload(data.url);
+    return;
+  }
+  if (code === 401 || code === 202) return openLink();
+  report(status, code, "La descarga de todo");
+}
+
+async function download(row) {
+  const { file, button, status } = row;
+  button.disabled = true;
+  status.className = "status";
   status.textContent = "Preparando…";
   const { status: code, data } = await post("/api/ticket", { ...credentials(), file: file.id });
   button.disabled = false;
   if (code === 200 && data.url) {
-    status.textContent = "Descarga iniciada. Si se corta, puedes reanudarla desde el navegador durante unas horas.";
+    status.className = "status ok";
+    status.textContent = "Descarga iniciada";
+    button.classList.add("done");
+    button.replaceChildren(icon("check"), el("span", { class: "label" }, "Otra vez"));
+    button.setAttribute("aria-label", `Descargar ${file.name} otra vez`);
+    row.node.classList.add("done");
     startDownload(data.url);
     return true;
   }
-  if (code === 404) status.textContent = "Este fichero ya no está disponible.";
-  else if (code === 401 || code === 202) openLink();
-  else if (code === 429) status.textContent = "Demasiados intentos. Espera unos minutos.";
-  else status.textContent = "No se ha podido iniciar la descarga. Inténtalo de nuevo.";
+  if (code === 401 || code === 202) {
+    openLink();
+    return false;
+  }
+  report(status, code, "Este archivo");
   return false;
 }
 
 const token = location.hash.slice(1);
 if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) {
-  message("Enlace incompleto", "Abre el enlace completo que te han enviado, incluida la parte que va detrás de #.");
+  message("link", "Enlace incompleto", "Abre el enlace completo que te han enviado, incluida la parte que va detrás del símbolo #. Si lo copiaste a mano, prueba a pulsarlo directamente.");
 } else {
   state.token = token;
   openLink();

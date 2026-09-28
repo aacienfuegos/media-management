@@ -39,9 +39,44 @@ jobs:
       - name: Auditoría de dependencias
         run: uv run pip-audit
 
+  demo:
+    name: Modo demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Arrancar
+        run: ./demo.sh up -d --build
+
+      - name: healthz con los cuatro chequeos en verde
+        run: |
+          for _ in $(seq 60); do
+            curl -fsS http://127.0.0.1:8003/healthz > health.json && break
+            sleep 2
+          done
+          cat health.json
+          jq -e '.ok and .media.ok and .jellyfin_ids_export.ok and .jellyfin.ok and .worker.ok' health.json
+
+      - name: Panel a través del proxy de cabeceras
+        run: curl -fsS -o /dev/null http://127.0.0.1:8002/
+
+      - name: Manifiesto igual al esperado, clip a clip
+        run: |
+          for _ in $(seq 30); do
+            [ -f demo-data/manifest/buceo.json ] && break
+            sleep 2
+          done
+          ./demo.sh run --rm --no-deps -v "$PWD/deploy/demo:/expected:ro" worker \
+            compare /manifest/buceo.json /expected/manifest.expected.json
+
+      - name: Logs
+        if: failure()
+        run: ./demo.sh logs
+
   build:
     name: Build, scan y push
-    needs: checks
+    needs: [checks, demo]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,6 +104,7 @@ jobs:
           load: true
           push: false
           tags: ${{ env.IMAGE }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

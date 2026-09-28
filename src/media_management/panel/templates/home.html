@@ -5,42 +5,59 @@
 <div class="banner bad"><strong>La biblioteca no está disponible.</strong> {{ media_problem }}. No se escanea, no se sirve ni se mueve nada hasta que vuelva.</div>
 {% endif %}
 
-<section class="cards">
+<h1 class="sr-only">Inicio</h1>
+<form class="hero-search" method="get" action="/library" role="search">
+  <div class="search">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M10 4a6 6 0 1 0 3.7 10.7l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
+    <input type="search" name="q" aria-label="Buscar en toda la Biblioteca" placeholder="Buscar ficheros" data-search autocomplete="off">
+    <kbd>/</kbd>
+  </div>
+  <button class="primary">Buscar</button>
+</form>
+
+<section class="stats" aria-label="Pendiente">
+  <a class="stat{% if pending %} attention{% endif %}" href="/requests">
+    <div class="label">Solicitudes pendientes</div>
+    <div class="value">{{ pending }}</div>
+    <div class="sub">{% if pending %}Esperan tu aprobación{% else %}Nada que revisar{% endif %}</div>
+  </a>
+  <a class="stat" href="/links">
+    <div class="label">Enlaces activos</div>
+    <div class="value">{{ active_links }}</div>
+    <div class="sub">Ver descargas y caducidades</div>
+  </a>
+</section>
+
+<h2 class="section-title">Raíces</h2>
+<section class="stats roots" aria-label="Raíces">
   {% for name, root in roots.items() %}
-  <a class="card" href="/library?root={{ name|urlencode }}">
-    <h2>{{ name }}</h2>
-    <p class="big">{{ counts[name].files }} <span>ficheros</span></p>
-    <p class="muted">{{ counts[name].bytes|size }}</p>
-    <p class="flags">
+  <a class="stat" href="/library?root={{ name|urlencode }}">
+    <div class="label">{{ name }}</div>
+    <div class="value">{{ counts[name].files }} <small>ficheros · {{ counts[name].bytes|size }}</small></div>
+    <div class="flags">
       {% if root.shareable %}<span class="tag">compartible</span>{% endif %}
       {% if root.in_manifest %}<span class="tag">manifiesto</span>{% endif %}
       {% if root.synced %}<span class="tag">sincronizada</span>{% endif %}
       {% if root.requires_second_copy %}<span class="tag warn">exige 2ª copia</span>{% endif %}
-    </p>
+    </div>
   </a>
   {% endfor %}
-  <a class="card" href="/links">
-    <h2>Enlaces activos</h2>
-    <p class="big">{{ active_links }}</p>
-  </a>
-  <a class="card{% if pending %} attention{% endif %}" href="/requests">
-    <h2>Solicitudes pendientes</h2>
-    <p class="big">{{ pending }}</p>
-  </a>
 </section>
 
-<section>
-  <h2>Estado {% if health_ok %}<span class="tag ok">todo bien</span>{% else %}<span class="tag bad">con problemas</span>{% endif %}</h2>
+<section class="panel" aria-labelledby="estado">
+  <div class="page-head">
+    <h2 id="estado">Estado {% if health_ok %}<span class="tag ok">todo bien</span>{% else %}<span class="tag bad">con problemas</span>{% endif %}</h2>
+    <form method="post" action="/scan" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="sm">Escanear ahora</button></form>
+  </div>
   <table class="kv">
+    <tr><th>Último escaneo</th><td>{% if scan %}{{ scan.finished_at|ago }} · {{ scan.files }} ficheros, {{ scan.new }} nuevos, {{ scan.gone }} desaparecidos{% if scan.meta_errors %} <span class="tag warn">{{ scan.meta_errors }} con metadatos ilegibles</span>{% endif %}{% else %}nunca{% endif %}</td></tr>
     <tr><th>Biblioteca montada</th><td>{% if health.media.ok %}<span class="tag ok">sí</span>{% else %}<span class="tag bad">no</span> {{ health.media.problem }}{% endif %}</td></tr>
+    <tr><th>Worker</th><td>{% if health.worker.ok %}<span class="tag ok">vivo</span>{% else %}<span class="tag bad">sin latido</span>{% endif %}
+      {% if health.worker.heartbeat_age_s is not none %}<span class="muted">latido hace {{ health.worker.heartbeat_age_s }} s</span>{% endif %}</td></tr>
+    <tr><th>Jellyfin</th><td>{% if health.jellyfin.ok %}<span class="tag ok">responde</span>{% else %}<span class="tag bad">no responde</span> <span class="muted">sin miniaturas nuevas</span>{% endif %}</td></tr>
     <tr><th>Export de IDs de Jellyfin</th><td>{% if health.jellyfin_ids_export.ok %}<span class="tag ok">al día</span>{% else %}<span class="tag bad">no utilizable</span> {{ health.jellyfin_ids_export.problem }}{% endif %}
       {% if health.jellyfin_ids_export.age_s is not none %}<span class="muted">({{ health.jellyfin_ids_export.age_s // 60 }} min)</span>{% endif %}</td></tr>
-    <tr><th>Jellyfin</th><td>{% if health.jellyfin.ok %}<span class="tag ok">responde</span>{% else %}<span class="tag bad">no responde</span> (sin miniaturas nuevas){% endif %}</td></tr>
-    <tr><th>Worker</th><td>{% if health.worker.ok %}<span class="tag ok">vivo</span>{% else %}<span class="tag bad">sin latido</span>{% endif %}
-      {% if health.worker.heartbeat_age_s is not none %}<span class="muted">(latido hace {{ health.worker.heartbeat_age_s }} s)</span>{% endif %}</td></tr>
-    <tr><th>Último escaneo</th><td>{% if scan %}{{ scan.finished_at|ago }} · {{ scan.files }} ficheros, {{ scan.new }} nuevos, {{ scan.gone }} desaparecidos{% if scan.meta_errors %}, <span class="tag warn">{{ scan.meta_errors }} con metadatos ilegibles</span>{% endif %}{% else %}nunca{% endif %}
-      <form method="post" action="/scan" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Escanear ahora</button></form></td></tr>
-    <tr><th>Manifiesto</th><td>{% if manifest %}
+    <tr><th><a href="/manifest">Manifiesto</a></th><td>{% if manifest %}
       {% if manifest.written %}<span class="tag ok">escrito</span> {{ manifest.at|ago }} · {{ manifest.clips }} clips, {{ manifest.without_id }} sin ID todavía, {{ manifest.without_date }} fuera por falta de fecha
       {% else %}<span class="tag bad">no escrito</span> {{ manifest.at|ago }}: {{ manifest.problem }}{% if manifest.last_written_at %} · se conserva el de {{ manifest.last_written_at|local }}{% endif %}{% endif %}
       {% if manifest.id_mismatches %}<br><span class="tag warn">{{ manifest.id_mismatches }} IDs no coinciden con el cálculo</span> Jellyfin puede haber cambiado su algoritmo de IDs (no bloquea: el export manda).{% endif %}

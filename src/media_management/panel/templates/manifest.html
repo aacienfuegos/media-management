@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Manifiesto{% endblock %}
 {% block content %}
-<h1>Manifiesto</h1>
-<p class="muted">Lo mismo que lee TripPlanner, clip a clip. Contrato v1: la identidad de cada clip es su <code>jellyfin_path</code>.</p>
+<div class="page-head"><h1>Manifiesto</h1></div>
+<p class="hint">Lo mismo que lee TripPlanner, clip a clip. Contrato v1: la identidad de cada clip es su <code>jellyfin_path</code>.</p>
 {% if status %}
 <div class="banner {% if status.written %}ok{% else %}bad{% endif %}">
   {% if status.written %}Generado {{ status.at|ago }} y escrito en <code>{{ status.path or "(sin fichero configurado)" }}</code>.
@@ -17,9 +17,10 @@
 {% endif %}
 {% if doc %}
 <div class="toolbar">
-  <input type="search" data-filter="clips" placeholder="Filtrar" class="grow">
+  <input type="search" data-filter="clips" placeholder="Filtrar clips" aria-label="Filtrar clips" class="grow js-only">
   <span class="muted">{{ doc.clips|length }} clips · generado {{ doc.generated_at|local }}</span>
 </div>
+<div class="table-wrap">
 <table id="clips" data-sortable>
   <thead><tr>
     <th data-sort="text">jellyfin_path</th><th data-sort="text">jellyfin_item_id</th><th data-sort="text">kind</th>
@@ -41,7 +42,8 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
-<p class="muted">Todavía no se ha generado ningún manifiesto.</p>
+<div class="panel empty"><strong>Todavía no se ha generado ningún manifiesto</strong><p>El worker lo escribe tras cada escaneo de las raíces marcadas para el manifiesto.</p></div>
 {% endif %}
 {% endblock %}

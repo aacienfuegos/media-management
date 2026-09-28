@@ -3,16 +3,18 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from media_management.db import get_state, init_main, init_public, now_iso, set_state
 from media_management.health import health_detail
 from media_management.logs import audit
 from media_management.panel import admin_routes, catalog_routes, links_routes, requests_routes, trash_routes
 from media_management.panel.deps import (
-    CsrfUser, MainDb, PublicDb, User, client_ip, render, roots_of, settings_of)
+    CsrfUser, MainDb, PublicDb, User, client_ip, identity, render, roots_of, settings_of)
 from media_management.roots import load_roots, media_problem
 from media_management.settings import Settings, get_settings, require_key
 from media_management.web import add_security_headers
@@ -36,6 +38,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # los POST de formulario y la comprobación de origen del CSRF no puede funcionar.
     add_security_headers(app, referrer_policy="same-origin")
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def not_found_page(request: Request, exc: StarletteHTTPException) -> Response:
+        """Un 404 con la barra del panel en vez de JSON, solo para quien ya pasa la
+        identidad: a los demás no se les enseña nada del panel."""
+        if exc.status_code == 404 and request.method == "GET":
+            try:
+                user = identity(request)
+            except HTTPException:
+                pass
+            else:
+                return render(request, user, "error.html", status_code=404, code=404)
+        return await http_exception_handler(request, exc)
+
+    @app.exception_handler(Exception)
+    async def error_page(request: Request, exc: Exception) -> Response:
+        try:
+            user = identity(request)
+        except HTTPException:
+            return Response("Error interno", status_code=500, media_type="text/plain")
+        return render(request, user, "error.html", status_code=500, code=500)
 
     @app.get("/healthz")
     async def healthz(request: Request, conn: MainDb) -> JSONResponse:
@@ -78,7 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await set_state(conn, "scan_requested", now_iso())
         await audit(conn, user, "scan_requested", "ok", ip=client_ip(request))
         await conn.commit()
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/?hecho=scan", status_code=303)
 
     app.include_router(catalog_routes.router)
     app.include_router(admin_routes.router)

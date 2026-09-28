@@ -105,7 +105,7 @@ async def share(request: Request, body: ShareIn, main: MainRo, pconn: PublicDb) 
     files = [lf for lf in await link_files(main, link["id"]) if lf.present]
     z = await zip_status(main, link["id"], len(files))
     return JSONResponse({
-        "title": link["title"], "mode": link["mode"],
+        "title": link["title"], "mode": link["mode"], "sender": settings.share_sender,
         "expires_at": result.expires_at,
         "files": [{"id": lf.id, "name": lf.name, "size": lf.size_bytes, "kind": lf.kind,
                    "thumb": _thumb(lf.thumb_jpeg)} for lf in files],

@@ -1,88 +1,107 @@
 {% extends "base.html" %}
 {% block title %}{{ root.name if root else "Biblioteca" }}{% endblock %}
 {% block content %}
-<h1>Biblioteca</h1>
 {% set filters = "&q=" ~ (q|urlencode) ~ "&kind=" ~ kind ~ "&sort=" ~ sort ~ "&order=" ~ order %}
 {% set here = "?root=" ~ ((root.name if root else "")|urlencode) ~ "&dir=" ~ (current|urlencode) ~ "&q=" ~ (q|urlencode) ~ "&kind=" ~ kind %}
 {% macro sorth(key, label, cls="") -%}
-<th class="{{ cls }}"><a class="sortable{% if sort == key %} sorted-{{ order }}{% endif %}" href="{{ here }}&sort={{ key }}&order={{ 'desc' if sort == key and order == 'asc' else 'asc' }}">{{ label }}</a></th>
+<th class="{{ cls }}"{% if sort == key %} aria-sort="{{ 'ascending' if order == 'asc' else 'descending' }}"{% endif %}><a class="sortable{% if sort == key %} sorted-{{ order }}{% endif %}" href="{{ here }}&sort={{ key }}&order={{ 'desc' if sort == key and order == 'asc' else 'asc' }}">{{ label }}</a></th>
 {%- endmacro %}
-<nav class="segmented" aria-label="Raíz">
-  <a href="/library?{{ filters[1:] }}"{% if not root %} aria-current="page"{% endif %}>Todas</a>
-  {% for name in roots %}<a href="/library?root={{ name|urlencode }}{{ filters }}"{% if root and root.name == name %} aria-current="page"{% endif %}>{{ name }}</a>{% endfor %}
+<nav class="crumbs" aria-label="Ubicación">
+  <a href="/library">Biblioteca</a>
+  {% if root %}<span class="sep">/</span><a href="/library?root={{ root.name|urlencode }}">{{ root.name }}</a>{% for path, part in crumbs %}<span class="sep">/</span><a href="/library?root={{ root.name|urlencode }}&dir={{ path|urlencode }}"{% if loop.last %} aria-current="page"{% endif %}>{{ part }}</a>{% endfor %}{% endif %}
 </nav>
-<p class="crumbs">
-  {% if root %}<a href="/library?root={{ root.name|urlencode }}">{{ root.name }}</a>{% for path, part in crumbs %} / <a href="/library?root={{ root.name|urlencode }}&dir={{ path|urlencode }}">{{ part }}</a>{% endfor %} · {% endif %}
-  {{ total }} ficheros · {{ total_bytes|size }}
+<div class="page-head">
+  <h1>{% if crumbs %}{{ crumbs[-1][1] }}{% elif root %}{{ root.name }}{% else %}Biblioteca{% endif %}
+    <span class="muted small">{{ total }} fichero{% if total != 1 %}s{% endif %} · {{ total_bytes|size }}</span></h1>
   {% if root and root.requires_second_copy %}<span class="tag warn">exige segunda copia para borrar</span>{% endif %}
   {% if root and not root.renamable %}<span class="tag">nombres fijos</span>{% endif %}
-</p>
+</div>
 
-<form class="toolbar" method="get" action="/library">
+<form class="toolbar" method="get" action="/library" role="search" data-autosubmit>
+  <nav class="segmented" aria-label="Raíz">
+    <a href="/library?{{ filters[1:] }}"{% if not root %} aria-current="page"{% endif %}>Todas</a>
+    {% for name in roots %}<a href="/library?root={{ name|urlencode }}{{ filters }}"{% if root and root.name == name %} aria-current="page"{% endif %}>{{ name }}</a>{% endfor %}
+  </nav>
   {% if root %}<input type="hidden" name="root" value="{{ root.name }}">
   <input type="hidden" name="dir" value="{{ current }}">{% endif %}
-  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre" class="grow">
-  <select name="kind">
+  <div class="search grow">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 4a6 6 0 1 0 3.7 10.7l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
+    <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre{% if current %} en esta carpeta{% elif root %} en {{ root.name }}{% endif %}" aria-label="Buscar por nombre" data-search autocomplete="off">
+    <kbd>/</kbd>
+  </div>
+  <select name="kind" aria-label="Tipo de fichero">
     <option value="" {% if not kind %}selected{% endif %}>Todos los tipos</option>
-    <option value="video" {% if kind == "video" %}selected{% endif %}>Vídeo</option>
-    <option value="photo" {% if kind == "photo" %}selected{% endif %}>Foto</option>
+    <option value="video" {% if kind == "video" %}selected{% endif %}>Vídeos</option>
+    <option value="photo" {% if kind == "photo" %}selected{% endif %}>Fotos</option>
     <option value="other" {% if kind == "other" %}selected{% endif %}>Otros</option>
   </select>
   <input type="hidden" name="sort" value="{{ sort }}">
   <input type="hidden" name="order" value="{{ order }}">
-  <button>Aplicar</button>
+  <button class="no-js">Aplicar</button>
+  {% if q or kind %}<a class="btn ghost" href="/library?root={{ (root.name if root else '')|urlencode }}&dir={{ current|urlencode }}&sort={{ sort }}&order={{ order }}">Quitar filtros</a>{% endif %}
 </form>
 
 {% if subdirs %}
-<p>{% for d in subdirs %}<a class="button" href="/library?root={{ root.name|urlencode }}&dir={{ d|urlencode }}">📁 {{ d.split("/")[-1] }}</a> {% endfor %}</p>
+<ul class="chips" aria-label="Carpetas">
+  {% for d in subdirs %}<li><a class="chip" href="/library?root={{ root.name|urlencode }}&dir={{ d|urlencode }}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z"/></svg>{{ d.split("/")[-1] }}</a></li>{% endfor %}
+</ul>
 {% endif %}
 
-<form method="get" action="/links/new">
+<form method="get" action="/links/new" data-selection>
+<div class="table-wrap">
 <table id="files">
   <thead><tr>
-    {% if shareable %}<th><input type="checkbox" data-select-all="files" aria-label="Seleccionar todos"></th>{% endif %}
-    <th></th>
+    {% if shareable %}<th class="cell-check"><input type="checkbox" data-select-all="files" aria-label="Seleccionar todos los de esta página"></th>{% endif %}
+    <th class="cell-thumb"><span class="sr-only">Miniatura</span></th>
     {{ sorth("name", "Nombre" if root else "Ruta") }}
-    {% if not root %}{{ sorth("root", "Raíz") }}{% endif %}
-    {{ sorth("kind", "Tipo") }}
+    {% if not root %}{{ sorth("root", "Raíz", "opt-sm") }}{% endif %}
+    {{ sorth("kind", "Tipo", "opt") }}
     {{ sorth("size", "Tamaño", "num") }}
-    {{ sorth("date", "Captura (Madrid)") }}
-    {{ sorth("duration", "Duración", "num") }}
-    {{ sorth("resolution", "Resolución") }}
-    {% if jellyfin %}<th>Jellyfin</th>{% endif %}
+    {{ sorth("date", "Captura (Madrid)", "opt-sm") }}
+    {{ sorth("duration", "Duración", "num opt") }}
+    {{ sorth("resolution", "Resolución", "opt") }}
+    {% if jellyfin %}<th class="opt">Jellyfin</th>{% endif %}
   </tr></thead>
   <tbody>
   {% for f in files %}
   {% set r = roots[f.root] %}
   <tr>
-    {% if shareable %}<td>{% if r.shareable %}<input type="checkbox" name="file_id" value="{{ f.id }}" aria-label="Seleccionar {{ f.name }}">{% endif %}</td>{% endif %}
-    <td><a href="/files/{{ f.id }}"><img class="thumb" src="/thumb/{{ f.id }}" alt="" loading="lazy"></a></td>
-    <td class="name"><a href="/files/{{ f.id }}">{{ f.name if root else f.relpath }}</a>{% if f.meta_error %} <span class="tag warn" title="{{ f.meta_error }}">metadatos ilegibles</span>{% endif %}</td>
-    {% if not root %}<td><a href="/library?root={{ f.root|urlencode }}">{{ f.root }}</a></td>{% endif %}
-    <td>{{ icons[f.kind] }}</td>
+    {% if shareable %}<td class="cell-check">{% if r.shareable %}<input type="checkbox" name="file_id" value="{{ f.id }}" aria-label="Seleccionar {{ f.name }}">{% endif %}</td>{% endif %}
+    <td class="cell-thumb"><a href="/files/{{ f.id }}" tabindex="-1" aria-hidden="true"><img class="thumb" src="/thumb/{{ f.id }}" alt="" loading="lazy"></a></td>
+    <td><a class="name" href="/files/{{ f.id }}">{{ f.name if root else f.relpath }}</a>{% if f.meta_error %} <span class="tag warn" title="{{ f.meta_error }}">metadatos ilegibles</span>{% endif %}
+      <span class="sub only-sm">{% if not root %}{{ f.root }} · {% endif %}{{ f.date_utc|local }}</span></td>
+    {% if not root %}<td class="opt-sm"><a class="tag" href="/library?root={{ f.root|urlencode }}">{{ f.root }}</a></td>{% endif %}
+    <td class="opt">{{ icons[f.kind] }}</td>
     <td class="num" data-value="{{ f.size_bytes }}">{{ f.size_bytes|size }}</td>
-    <td data-value="{{ f.date_utc or '' }}">{{ f.date_utc|local }}{% if f.date_source and f.date_source != "mp4_mvhd" %} <span class="tag" title="{{ f.date_source }}">{% if f.date_source.startswith("exif+desfase") %}EXIF + desfase{% elif f.date_source == "mtime" %}fecha del fichero{% else %}EXIF{% endif %}</span>{% endif %}</td>
-    <td class="num" data-value="{{ f.duration_s or 0 }}">{{ f.duration_s|duration if f.duration_s else "—" }}</td>
-    <td>{% if f.width %}{{ f.width }}×{{ f.height }}{% else %}—{% endif %}</td>
-    {% if jellyfin %}<td>{% if not r.indexed_by_jellyfin %}—{% elif f.jellyfin_item_id %}<span class="tag ok">indexado</span>{% else %}<span class="tag warn">aún no</span>{% endif %}</td>{% endif %}
+    <td class="nowrap opt-sm" data-value="{{ f.date_utc or '' }}">{{ f.date_utc|local }}{% if f.date_source and f.date_source != "mp4_mvhd" %} <span class="tag" title="{{ f.date_source }}">{% if f.date_source.startswith("exif+desfase") %}EXIF + desfase{% elif f.date_source == "mtime" %}fecha del fichero{% else %}EXIF{% endif %}</span>{% endif %}</td>
+    <td class="num opt" data-value="{{ f.duration_s or 0 }}">{{ f.duration_s|duration if f.duration_s else "—" }}</td>
+    <td class="opt">{% if f.width %}{{ f.width }}×{{ f.height }}{% else %}—{% endif %}</td>
+    {% if jellyfin %}<td class="opt">{% if not r.indexed_by_jellyfin %}—{% elif f.jellyfin_item_id %}<span class="tag ok">indexado</span>{% else %}<span class="tag">pendiente</span>{% endif %}</td>{% endif %}
   </tr>
   {% else %}
-  <tr><td colspan="10" class="muted">No hay ficheros aquí.</td></tr>
+  <tr><td colspan="10" class="empty">
+    {% if q or kind %}<strong>Nada coincide con esa búsqueda</strong>
+    <p>{% if q %}Ningún fichero contiene «{{ q }}» en el nombre{% else %}No hay ficheros de ese tipo{% endif %}{% if root %} en esta carpeta. La búsqueda no entra en subcarpetas: prueba en <a href="/library?q={{ q|urlencode }}&kind={{ kind }}">toda la Biblioteca</a>{% endif %}.</p>
+    {% elif subdirs %}<strong>No hay ficheros sueltos aquí</strong><p>Entra en una de las carpetas de arriba.</p>
+    {% else %}<strong>No hay ficheros aquí</strong><p>Lo que se copie a esta raíz aparecerá tras el próximo escaneo.</p>{% endif %}
+  </td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% if pages > 1 %}
 {% set base = "?root=" ~ ((root.name if root else "")|urlencode) ~ "&dir=" ~ (current|urlencode) ~ filters %}
-<p class="pager">
-  {% if page > 1 %}<a class="button" href="{{ base }}&page={{ page - 1 }}">Anterior</a>{% endif %}
+<nav class="pager" aria-label="Páginas">
+  {% if page > 1 %}<a class="btn" href="{{ base }}&page={{ page - 1 }}" rel="prev">← Anterior</a>{% endif %}
   <span class="muted">Página {{ page }} de {{ pages }}</span>
-  {% if page < pages %}<a class="button" href="{{ base }}&page={{ page + 1 }}">Siguiente</a>{% endif %}
-</p>
+  {% if page < pages %}<a class="btn" href="{{ base }}&page={{ page + 1 }}" rel="next">Siguiente →</a>{% endif %}
+</nav>
 {% endif %}
 {% if shareable %}
-<div class="selbar">
-  <span><strong id="selected-count">0</strong> seleccionados</span>
-  <button class="primary" id="selected-submit" disabled>Crear enlace de descarga</button>
+<div class="selbar" data-empty aria-live="polite">
+  <span class="grow"><strong id="selected-count">0</strong> <span id="selected-label">seleccionados</span></span>
+  <button type="button" class="ghost js-only" data-clear-selection>Quitar selección</button>
+  <button class="primary" id="selected-submit">Crear enlace de descarga</button>
 </div>
 {% endif %}
 </form>

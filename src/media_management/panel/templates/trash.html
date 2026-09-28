@@ -1,24 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Papelera{% endblock %}
 {% block content %}
-<h1>Papelera</h1>
-{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
-<p class="muted">Lo borrado se mueve aquí, fuera de la biblioteca y en el mismo disco. La app nunca borra: el host vacía la papelera a los 30 días.</p>
+<div class="page-head"><h1>Papelera</h1></div>
+{% if error %}<div class="banner bad" role="alert">{{ error }}</div>{% endif %}
+<p class="hint">Lo borrado se mueve aquí, fuera de la biblioteca y en el mismo disco. La app nunca borra: el host vacía la papelera a los 30 días.</p>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Fichero</th><th>Raíz</th><th class="num">Tamaño</th><th>Borrado</th><th>Estado</th><th></th></tr></thead>
+  {% if entries %}<thead><tr><th>Fichero</th><th class="opt-sm">Raíz</th><th class="num opt">Tamaño</th><th class="opt">Borrado</th><th>Estado</th><th class="cell-actions"><span class="sr-only">Acciones</span></th></tr></thead>{% endif %}
   <tbody>
   {% for e in entries %}
   <tr>
-    <td class="name">{% if e.file_id %}<a href="/files/{{ e.file_id }}">{{ e.relpath }}</a>{% else %}{{ e.relpath }}{% endif %}</td>
-    <td>{{ e.root }}</td>
-    <td class="num">{{ e.size_bytes|size }}</td>
-    <td>{{ e.trashed_at|local }} <span class="muted">por {{ e.trashed_by }}</span></td>
+    <td>{% if e.file_id %}<a class="name" href="/files/{{ e.file_id }}">{{ e.relpath }}</a>{% else %}<span class="name">{{ e.relpath }}</span>{% endif %}<span class="sub only-sm">{{ e.root }} · {{ e.trashed_at|local }}</span></td>
+    <td class="opt-sm">{{ e.root }}</td>
+    <td class="num opt">{{ e.size_bytes|size }}</td>
+    <td class="nowrap opt">{{ e.trashed_at|local }} <span class="sub">por {{ e.trashed_by }}</span></td>
     <td>{% if e.restored_at %}<span class="tag ok">restaurado {{ e.restored_at|local }}</span>{% elif e.purged_at %}<span class="tag">vaciado</span>{% else %}<span class="tag warn">en la papelera</span>{% endif %}</td>
-    <td>{% if not e.restored_at and not e.purged_at %}<form method="post" action="/trash/{{ e.id }}/restore"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Restaurar</button></form>{% endif %}</td>
+    <td class="cell-actions">{% if not e.restored_at and not e.purged_at %}<form method="post" action="/trash/{{ e.id }}/restore" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="sm">Restaurar</button></form>{% endif %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="6" class="muted">La papelera está vacía.</td></tr>
+  <tr><td colspan="6" class="empty">
+    <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Z"/></svg>
+    <strong>La papelera está vacía</strong>
+    <p>Lo que mandes a la papelera desde la ficha de un fichero aparecerá aquí, y podrás restaurarlo hasta que el host la vacíe.</p>
+  </td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

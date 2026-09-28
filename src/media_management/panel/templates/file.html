@@ -1,57 +1,64 @@
 {% extends "base.html" %}
 {% block title %}{{ f.name }}{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/library?root={{ root.name|urlencode }}">{{ root.name }}</a> / <span class="name">{{ f.relpath }}</span></p>
-<h1 class="name">{{ f.name }}</h1>
-{% if not f.present %}<div class="banner warn">Este fichero ya no está en disco (movido a la papelera o desaparecido).</div>{% endif %}
-<div class="grid2">
+{% set parent = f.relpath.rsplit("/", 1)[0] if "/" in f.relpath else "" %}
+<nav class="crumbs" aria-label="Ubicación">
+  <a href="/library">Biblioteca</a><span class="sep">/</span><a href="/library?root={{ root.name|urlencode }}">{{ root.name }}</a>
+  {% if parent %}<span class="sep">/</span><a href="/library?root={{ root.name|urlencode }}&dir={{ parent|urlencode }}">{{ parent }}</a>{% endif %}
+</nav>
+<div class="page-head">
+  <h1 class="name">{{ f.name }}</h1>
+  {% if f.present %}
+  <div class="actions">
+    {% if root.shareable %}
+    <form method="get" action="/links/new" class="inline"><input type="hidden" name="file_id" value="{{ f.id }}"><button class="primary">Crear enlace</button></form>
+    {% endif %}
+    {% if root.renamable and not root.synced %}<a class="btn" href="/files/{{ f.id }}/rename">Renombrar</a>{% endif %}
+    {% if not blockers %}<a class="btn danger" href="/files/{{ f.id }}/trash">Mover a la papelera</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% if not f.present %}<div class="banner warn">Este fichero ya no está en disco: se ha movido a la papelera o ha desaparecido.</div>{% endif %}
+{% if f.present and blockers %}
+<div class="banner warn"><strong>No se puede mover a la papelera.</strong>
+  <ul>{% for b in blockers %}<li>{{ b }}.</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="grid-side">
   <div>
-    <img class="thumb big" src="/thumb/{{ f.id }}" alt="">
+    <img class="thumb big" src="/thumb/{{ f.id }}" alt="Miniatura de {{ f.name }}">
+    <h2>Enlaces que lo incluyen <span class="count">{{ links|length }}</span></h2>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Enlace</th><th class="opt-sm">Acceso</th><th>Estado</th><th class="opt-sm">Caduca</th></tr></thead>
+      <tbody>
+      {% for l in links %}
+      <tr><td><a href="/links/{{ l.id }}">{{ l.title }}</a></td>
+        <td class="opt-sm">{% if l.mode == "open" %}abierto{% elif l.mode == "password" %}contraseña{% else %}solicitud{% endif %}</td>
+        <td>{% if l.revoked_at %}<span class="tag bad">revocado</span>{% elif l.expires_at <= now %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>
+        <td class="nowrap opt-sm">{{ l.expires_at|local }}</td></tr>
+      {% else %}
+      <tr><td colspan="4" class="empty"><p>Todavía no se ha compartido.{% if root.shareable and f.present %} Usa <strong>Crear enlace</strong> para mandarlo a alguien.{% endif %}</p></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="table-wrap">
     <table class="kv">
       <tr><th>Raíz</th><td>{{ root.name }}</td></tr>
       <tr><th>Ruta</th><td class="name">{{ f.relpath }}</td></tr>
       <tr><th>Tipo</th><td>{{ icons[f.kind] }}</td></tr>
-      <tr><th>Tamaño</th><td>{{ f.size_bytes|size }} <span class="muted">({{ "{:,}".format(f.size_bytes).replace(",", ".") }} bytes)</span></td></tr>
-      <tr><th>Captura</th><td>{{ f.date_utc|local }} <span class="muted">{{ f.date_utc or "" }} UTC</span></td></tr>
-      <tr><th>Origen de la fecha</th><td>{{ f.date_source or "sin fecha fiable" }}</td></tr>
+      <tr><th>Tamaño</th><td>{{ f.size_bytes|size }} <span class="sub muted">{{ "{:,}".format(f.size_bytes).replace(",", ".") }} bytes</span></td></tr>
+      <tr><th>Captura</th><td>{{ f.date_utc|local }} <span class="sub muted">{{ f.date_utc or "" }} UTC</span></td></tr>
+      <tr><th>Origen de la fecha</th><td>{% if not f.date_source %}sin fecha fiable{% else %}<span title="{{ f.date_source }}">{% if f.date_source.startswith("exif+desfase") %}EXIF corregido con desfase{% elif f.date_source == "mtime" %}fecha del fichero{% elif f.date_source == "mp4_mvhd" %}metadatos del vídeo{% elif f.date_source.startswith("exif") %}EXIF{% else %}{{ f.date_source }}{% endif %}</span>{% endif %}</td></tr>
       {% if f.duration_s %}<tr><th>Duración</th><td>{{ f.duration_s|duration }}</td></tr>{% endif %}
       {% if f.width %}<tr><th>Resolución</th><td>{{ f.width }}×{{ f.height }}</td></tr>{% endif %}
-      {% if root.indexed_by_jellyfin %}<tr><th>Jellyfin</th><td>{% if f.jellyfin_item_id %}<span class="tag ok">indexado</span> <span class="name muted">{{ f.jellyfin_item_id }}</span>{% else %}<span class="tag warn">aún no indexado</span>{% endif %}</td></tr>{% endif %}
+      {% if root.indexed_by_jellyfin %}<tr><th>Jellyfin</th><td>{% if f.jellyfin_item_id %}<span class="tag ok">indexado</span> <span class="sub name muted">{{ f.jellyfin_item_id }}</span>{% else %}<span class="tag">pendiente de indexar</span>{% endif %}</td></tr>{% endif %}
       {% if f.meta_error %}<tr><th>Metadatos</th><td><span class="tag warn">ilegibles</span> {{ f.meta_error }}</td></tr>{% endif %}
       <tr><th>Visto por primera vez</th><td>{{ f.first_seen|local }}</td></tr>
       <tr><th>Visto por última vez</th><td>{{ f.last_seen|local }}</td></tr>
-    </table>
-  </div>
-  <div>
-    {% if f.present %}
-    <div class="panel stack">
-      <h2>Acciones</h2>
-      {% if root.shareable %}
-      <form method="get" action="/links/new"><input type="hidden" name="file_id" value="{{ f.id }}"><button class="primary">Crear enlace con este fichero</button></form>
-      {% endif %}
-      {% if root.renamable and not root.synced %}
-      <a class="button" href="/files/{{ f.id }}/rename">Renombrar</a>
-      {% endif %}
-      {% if blockers %}
-      <p><button class="danger" disabled>Mover a la papelera</button></p>
-      <ul class="hint">{% for b in blockers %}<li>No se puede borrar: {{ b }}.</li>{% endfor %}</ul>
-      {% else %}
-      <a class="button danger" href="/files/{{ f.id }}/trash">Mover a la papelera</a>
-      {% endif %}
-    </div>
-    {% endif %}
-    <h2>Enlaces que lo incluyen</h2>
-    <table>
-      <thead><tr><th>Enlace</th><th>Modo</th><th>Estado</th><th>Caduca</th></tr></thead>
-      <tbody>
-      {% for l in links %}
-      <tr><td><a href="/links/{{ l.id }}">{{ l.title }}</a></td><td>{{ l.mode }}</td>
-        <td>{% if l.revoked_at %}<span class="tag bad">revocado</span>{% elif l.expires_at <= now %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>
-        <td>{{ l.expires_at|local }}</td></tr>
-      {% else %}
-      <tr><td colspan="4" class="muted">Ninguno.</td></tr>
-      {% endfor %}
-      </tbody>
     </table>
   </div>
 </div>

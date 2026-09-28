@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     panel_allowed_users: list[str] = []
 
     public_url: str = "https://share.example.org"
+    # Quién comparte, tal como lo verá quien abre el enlace ("Ana te ha compartido…").
+    share_sender: str = ""
     panel_url: str = "https://panel.example.org"
 
     ntfy_url: str = ""

@@ -1,34 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Registro{% endblock %}
 {% block content %}
-<h1>Registro</h1>
-<form class="toolbar" method="get" action="/audit">
-  <select name="action">
+<div class="page-head"><h1>Registro</h1></div>
+<form class="toolbar" method="get" action="/audit" data-autosubmit>
+  <select name="action" aria-label="Filtrar por acción">
     <option value="">Todas las acciones</option>
-    {% for a in actions %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    {% for category, items in groups %}<optgroup label="{{ category }}">
+      {% for a, label in items %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </optgroup>{% endfor %}
   </select>
-  <button>Filtrar</button>
+  <button class="no-js">Filtrar</button>
+  {% if action %}<a class="btn ghost" href="/audit">Quitar filtro</a>{% endif %}
 </form>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Cuándo</th><th>Quién</th><th>Acción</th><th>Sobre</th><th>Resultado</th><th>IP</th><th>Detalle</th></tr></thead>
+  <thead><tr><th>Cuándo</th><th class="opt-sm">Quién</th><th>Acción</th><th>Sobre</th><th>Resultado</th><th class="opt">IP</th><th class="opt">Detalle</th></tr></thead>
   <tbody>
   {% for r in rows %}
   <tr>
-    <td>{{ r.ts|local("%d/%m/%Y %H:%M:%S") }}</td>
-    <td>{{ r.actor }}</td>
-    <td>{{ r.action }}</td>
-    <td>{% if r.link_id %}<a href="/links/{{ r.link_id }}">{{ r.target }}</a>{% else %}<span class="name">{{ r.target or "" }}</span>{% endif %}</td>
-    <td>{% if r.result == "ok" %}<span class="tag ok">ok</span>{% else %}<span class="tag warn">{{ r.result }}</span>{% endif %}</td>
-    <td class="name">{{ r.ip or "" }}</td>
-    <td class="small">{% if r.detail_obj %}{% for k, v in r.detail_obj.items() %}{{ k }}={{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</td>
+    <td class="nowrap">{{ r.ts|local("%d/%m/%Y %H:%M:%S") }}</td>
+    <td class="opt-sm">{{ r.actor }}</td>
+    <td class="nowrap" title="{{ r.action }}">{{ r.label }}</td>
+    <td>{% if r.link_id %}<a href="/links/{{ r.link_id }}">{{ r.target or "enlace " ~ r.link_id }}</a>{% else %}<span class="name">{{ r.target or "" }}</span>{% endif %}</td>
+    <td>{% if r.result == "ok" %}<span class="tag ok">ok</span>{% else %}<span class="tag warn">{{ r.result_label }}</span>{% endif %}</td>
+    <td class="nowrap opt"><code>{{ r.ip or "" }}</code></td>
+    <td class="small opt">{% for k, v in r["items"] %}<span class="muted">{{ k }}</span> {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="muted">Sin entradas.</td></tr>
+  <tr><td colspan="7" class="empty"><p>Sin entradas{% if action %} para esa acción{% endif %}.</p></td></tr>
   {% endfor %}
   </tbody>
 </table>
-<p class="pager">
-  {% if page > 1 %}<a class="button" href="?action={{ action|urlencode }}&page={{ page - 1 }}">Más recientes</a>{% endif %}
-  {% if more %}<a class="button" href="?action={{ action|urlencode }}&page={{ page + 1 }}">Más antiguas</a>{% endif %}
-</p>
+</div>
+<nav class="pager" aria-label="Páginas">
+  {% if page > 1 %}<a class="btn" href="?action={{ action|urlencode }}&page={{ page - 1 }}" rel="prev">← Más recientes</a>{% endif %}
+  {% if more %}<a class="btn" href="?action={{ action|urlencode }}&page={{ page + 1 }}" rel="next">Más antiguas →</a>{% endif %}
+</nav>
 {% endblock %}
