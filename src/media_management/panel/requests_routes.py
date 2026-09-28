@@ -18,6 +18,10 @@ def _cutoff(days: int) -> str:
     return iso(utcnow() - datetime.timedelta(days=days))
 
 
+def _default_days(link: aiosqlite.Row, max_days: int) -> int:
+    return min(max(1, (parse_iso(link["expires_at"]) - utcnow()).days + 1), max_days)
+
+
 async def _pending_request(pconn: aiosqlite.Connection, request_id: int, ttl_days: int) -> aiosqlite.Row:
     async with pconn.execute("SELECT * FROM access_requests WHERE id = ?", (request_id,)) as cur:
         req = await cur.fetchone()
@@ -37,11 +41,15 @@ async def requests_view(request: Request, user: User, conn: MainDb, pconn: Publi
                              "ORDER BY created_at DESC LIMIT 100", (cutoff,)) as cur:
         recent = await cur.fetchall()
     titles: dict[int, str] = {}
+    approvable: dict[int, int] = {}
     for r in [*pending, *recent]:
         if r["link_id"] not in titles:
             link = await link_by_id(conn, r["link_id"])
             titles[r["link_id"]] = link["title"] if link else "?"
-    return render(request, user, "requests.html", pending=pending, recent=recent, titles=titles, cutoff=cutoff)
+            if link is not None and is_active(link) and link["mode"] == "request":
+                approvable[r["link_id"]] = _default_days(link, settings.link_max_days)
+    return render(request, user, "requests.html", pending=pending, recent=recent, titles=titles, cutoff=cutoff,
+                  approvable=approvable, max_days=settings.link_max_days)
 
 
 @router.get("/requests/{request_id}")
@@ -51,12 +59,11 @@ async def request_view(request: Request, request_id: int, user: User, conn: Main
     link = await link_by_id(conn, req["link_id"])
     if link is None:
         raise HTTPException(404)
-    remaining = max(1, (parse_iso(link["expires_at"]) - utcnow()).days + 1)
     async with pconn.execute("SELECT COUNT(*) FROM access_requests WHERE ip = ? AND id != ?",
                              (req["ip"], request_id)) as cur:
         row = await cur.fetchone()
     return render(request, user, "request.html", req=req, link=link, active=is_active(link),
-                  default_days=min(remaining, settings.link_max_days), max_days=settings.link_max_days,
+                  default_days=_default_days(link, settings.link_max_days), max_days=settings.link_max_days,
                   same_ip=row[0] if row else 0)
 
 
@@ -85,7 +92,7 @@ async def approve(request: Request, request_id: int, user: CsrfUser, conn: MainD
     await pconn.execute("UPDATE access_requests SET status = 'approved', resolved_at = ?, resolved_by = ? "
                         "WHERE id = ?", (now_iso(), user, req["id"]))
     await pconn.commit()
-    return RedirectResponse(f"/links/{link['id']}", status_code=303)
+    return RedirectResponse(f"/links/{link['id']}?hecho=approved", status_code=303)
 
 
 @router.post("/requests/{request_id}/reject")
@@ -98,7 +105,7 @@ async def reject(request: Request, request_id: int, user: CsrfUser, conn: MainDb
     await audit(conn, user, "access_rejected", "ok", target=f"enlace {req['link_id']}", ip=client_ip(request),
                 link_id=req["link_id"], request_id=req["id"])
     await conn.commit()
-    return RedirectResponse("/requests", status_code=303)
+    return RedirectResponse("/requests?hecho=rejected", status_code=303)
 
 
 @router.post("/grants/{grant_id}/revoke")
@@ -111,4 +118,4 @@ async def revoke_grant(request: Request, grant_id: int, user: CsrfUser, conn: Ma
     await audit(conn, user, "grant_revoked", "ok", target=f"enlace {grant['link_id']}", ip=client_ip(request),
                 link_id=grant["link_id"], grant_id=grant_id)
     await conn.commit()
-    return RedirectResponse(f"/links/{grant['link_id']}", status_code=303)
+    return RedirectResponse(f"/links/{grant['link_id']}?hecho=grant_revoked", status_code=303)

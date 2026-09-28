@@ -1,30 +1,41 @@
 {% extends "base.html" %}
 {% block title %}Enlaces{% endblock %}
 {% block content %}
-<h1>Enlaces de descarga</h1>
-<p class="toolbar">
-  {% if show == "active" %}<strong>Activos</strong> · <a href="/links?show=all">Todos</a>{% else %}<a href="/links">Activos</a> · <strong>Todos</strong>{% endif %}
-  <span class="grow"></span>
-  <span class="muted">Para crear uno, selecciona ficheros desde una raíz.</span>
-</p>
-<table data-sortable>
-  <thead><tr><th data-sort="text">Título</th><th data-sort="text">Acceso</th><th data-sort="num" class="num">Ficheros</th>
-    <th data-sort="num" class="num">Descargas</th><th data-sort="text">Última</th><th data-sort="text">Creado</th><th data-sort="text">Caduca</th><th>Estado</th></tr></thead>
+<div class="page-head">
+  <h1>Enlaces de descarga</h1>
+  <div class="actions"><a class="btn primary" href="/library" title="Los enlaces se crean seleccionando ficheros en la Biblioteca">Nuevo enlace</a></div>
+</div>
+<div class="toolbar">
+  <nav class="segmented" aria-label="Filtro">
+    <a href="/links"{% if show == "active" %} aria-current="page"{% endif %}>Activos</a>
+    <a href="/links?show=all"{% if show != "active" %} aria-current="page"{% endif %}>Todos</a>
+  </nav>
+  {% if links %}<input type="search" data-filter="links-table" placeholder="Filtrar por título" aria-label="Filtrar enlaces por título" class="grow js-only">{% endif %}
+</div>
+<div class="table-wrap">
+<table data-sortable id="links-table">
+  <thead><tr><th data-sort="text">Título</th><th data-sort="text" class="opt-sm">Acceso</th><th data-sort="num" class="num opt">Ficheros</th>
+    <th data-sort="num" class="num">Descargas</th><th data-sort="text" class="opt">Última</th><th data-sort="text" class="opt">Creado</th><th data-sort="text" class="opt-sm">Caduca</th><th>Estado</th></tr></thead>
   <tbody>
   {% for l in links %}
   <tr>
-    <td><a href="/links/{{ l.id }}">{{ l.title }}</a>{% if pending.get(l.id) %} <span class="tag warn">{{ pending[l.id] }} pendiente{% if pending[l.id] != 1 %}s{% endif %}</span>{% endif %}</td>
-    <td>{% if l.mode == "open" %}abierto{% elif l.mode == "password" %}contraseña{% else %}solicitud{% endif %}</td>
-    <td class="num">{{ l.nfiles }}</td>
+    <td><a class="row-title" href="/links/{{ l.id }}">{{ l.title }}</a>{% if pending.get(l.id) %} <a class="tag warn" href="/requests">{{ pending[l.id] }} pendiente{% if pending[l.id] != 1 %}s{% endif %}</a>{% endif %}</td>
+    <td class="opt-sm">{% if l.mode == "open" %}abierto{% elif l.mode == "password" %}contraseña{% else %}solicitud{% endif %}</td>
+    <td class="num opt">{{ l.nfiles }}</td>
     <td class="num">{{ stats[l.id].tickets }}</td>
-    <td data-value="{{ stats[l.id].last or '' }}">{{ stats[l.id].last|ago if stats[l.id].last else "—" }}</td>
-    <td data-value="{{ l.created_at }}">{{ l.created_at|local }}</td>
-    <td data-value="{{ l.expires_at }}">{{ l.expires_at|local }}</td>
+    <td class="opt" data-value="{{ stats[l.id].last or '' }}">{{ stats[l.id].last|ago if stats[l.id].last else "—" }}</td>
+    <td class="nowrap opt" data-value="{{ l.created_at }}">{{ l.created_at|local }}</td>
+    <td class="nowrap opt-sm" data-value="{{ l.expires_at }}">{{ l.expires_at|local }} <span class="sub">{{ l.expires_at|ago }}</span></td>
     <td>{% if l.revoked_at %}<span class="tag bad">revocado</span>{% elif l.expires_at <= now %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="8" class="muted">No hay enlaces.</td></tr>
+  <tr><td colspan="8" class="empty">
+    <strong>{% if show == "active" %}No hay enlaces activos{% else %}Todavía no has creado ningún enlace{% endif %}</strong>
+    <p>Para compartir, selecciona ficheros en la Biblioteca y pulsa <em>Crear enlace de descarga</em>.{% if show == "active" %} Los caducados y revocados están en <a href="/links?show=all">Todos</a>.{% endif %}</p>
+    <a class="btn primary" href="/library">Ir a la Biblioteca</a>
+  </td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

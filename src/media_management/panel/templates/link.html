@@ -1,137 +1,172 @@
 {% extends "base.html" %}
 {% block title %}{{ link.title }}{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/links">Enlaces</a></p>
-<h1>{{ link.title }}
-  {% if link.revoked_at %}<span class="tag bad">revocado</span>{% elif not active %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</h1>
-
-<div class="grid2">
-  <table class="kv">
-    <tr><th>Acceso</th><td>{% if link.mode == "open" %}abierto: quien tenga el enlace{% elif link.mode == "password" %}enlace + contraseña{% else %}enlace + aprobación por persona{% endif %}</td></tr>
-    <tr><th>Creado</th><td>{{ link.created_at|local }} por {{ link.created_by }}</td></tr>
-    <tr><th>Caduca</th><td>{{ link.expires_at|local }} <span class="muted">({{ link.expires_at|ago }})</span></td></tr>
-    {% if link.revoked_at %}<tr><th>Revocado</th><td>{{ link.revoked_at|local }}</td></tr>{% endif %}
-    {% if files|length >= min_zip_files %}
-    <tr><th>ZIP</th><td>
-      {% if not zip_enabled %}desactivado
-      {% elif zip is none %}<span class="muted">no se genera: quedan menos de {{ min_zip_files }} ficheros disponibles</span>
-      {% elif zip.state == "ready" %}<span class="tag ok">listo</span> {{ zip.size_bytes|size }} <span class="muted">(generado {{ zip.built_at|local }})</span>
-      {% elif zip.state == "building" %}<span class="tag">generándose</span>
-      {% elif zip.state == "pending" %}<span class="tag">en cola</span>
-      {% elif zip.state == "skipped" %}<span class="tag bad">no se genera</span> {{ zip.problem }}
-      {% else %}<span class="tag bad">ha fallado</span> {{ zip.problem }}{% endif %}
-    </td></tr>
-    {% endif %}
-    <tr><th>Descargas iniciadas</th><td>{{ tickets|length }}</td></tr>
-    <tr><th>Credenciales fallidas</th><td>{{ failures }}{% if failures %} <span class="muted">(ver el registro para el detalle por IP)</span>{% endif %}</td></tr>
-  </table>
-  <div class="panel stack">
-    <p class="muted">La URL del enlace no se puede volver a mostrar: se guarda hasheada.</p>
-    {% if not link.revoked_at %}
-    <form method="post" action="/links/{{ link.id }}/renew" class="toolbar">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <label for="days">Caducar dentro de</label>
-      <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="7" required> días
-      <button>Renovar</button>
-    </form>
-    <form method="post" action="/links/{{ link.id }}/revoke">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="danger">Revocar el enlace</button>
-      <span class="hint">Corta también las descargas pendientes de reanudar.</span>
-    </form>
-    {% endif %}
-    {% if files|length >= min_zip_files %}
-    <form method="post" action="/links/{{ link.id }}/zip" class="toolbar">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      {% if zip_enabled %}
-      <button name="action" value="regenerate">Regenerar el ZIP</button>
-      <button name="action" value="disable">Quitar el ZIP</button>
-      {% else %}
-      <button name="action" value="enable">Ofrecer un ZIP con todo</button>
-      {% endif %}
-    </form>
-    {% endif %}
-  </div>
+{% set pending_requests = requests|selectattr("status", "equalto", "pending")|list %}
+<nav class="crumbs" aria-label="Ubicación"><a href="/links">Enlaces</a></nav>
+<div class="page-head">
+  <h1>{{ link.title }}
+    {% if link.revoked_at %}<span class="tag bad">revocado</span>{% elif not active %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</h1>
+  {% if not link.revoked_at %}
+  <form method="post" action="/links/{{ link.id }}/revoke" class="actions" data-confirm="¿Revocar «{{ link.title }}»? Nadie podrá abrirlo ni reanudar descargas, y no se puede deshacer.">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="danger">Revocar el enlace</button>
+  </form>
+  {% endif %}
 </div>
 
-<h2>Ficheros</h2>
+<section class="stats" aria-label="Resumen">
+  <div class="stat"><div class="label">Acceso</div><div class="value sm">{% if link.mode == "open" %}Abierto{% elif link.mode == "password" %}Con contraseña{% else %}Por solicitud{% endif %}</div>
+    <div class="sub">{% if link.mode == "open" %}quien tenga el enlace{% elif link.mode == "password" %}enlace + contraseña{% else %}enlace + aprobación por persona{% endif %}</div></div>
+  <div class="stat"><div class="label">{% if link.revoked_at %}Revocado{% elif active %}Caduca{% else %}Caducó{% endif %}</div>
+    <div class="value sm">{{ (link.revoked_at or link.expires_at)|local }}</div><div class="sub">{{ (link.revoked_at or link.expires_at)|ago }}</div></div>
+  <div class="stat"><div class="label">Descargas iniciadas</div><div class="value">{{ tickets|length }}</div></div>
+  <div class="stat{% if failures %} attention{% endif %}"><div class="label">Credenciales fallidas</div><div class="value">{{ failures }}</div>
+    {% if failures %}<div class="sub"><a href="/audit">Ver el detalle por IP en el registro</a></div>{% endif %}</div>
+</section>
+
+{% if pending_requests and active %}
+<div class="banner warn"><strong>{{ pending_requests|length }} solicitud{% if pending_requests|length != 1 %}es{% endif %} esperando respuesta.</strong>
+  <a href="#solicitudes">Revisarlas</a></div>
+{% endif %}
+
+<div class="grid-side">
+<div>
+<h2>Ficheros <span class="count">{{ files|length }}</span></h2>
+<div class="table-wrap">
 <table>
-  <thead><tr><th></th><th>Nombre</th><th class="num">Tamaño</th><th class="num">Descargas</th><th>Estado</th></tr></thead>
+  <thead><tr><th class="cell-thumb"><span class="sr-only">Miniatura</span></th><th>Nombre</th><th class="num opt-sm">Tamaño</th><th class="num">Descargas</th><th class="opt-sm">Estado</th></tr></thead>
   <tbody>
   {% for lf in files %}
   <tr>
-    <td><img class="thumb" src="/thumb/{{ lf.file_id }}" alt="" loading="lazy"></td>
-    <td class="name"><a href="/files/{{ lf.file_id }}">{{ lf.name }}</a><br><span class="muted">{{ lf.root }}</span></td>
-    <td class="num">{{ lf.size_bytes|size }}</td>
+    <td class="cell-thumb"><img class="thumb" src="/thumb/{{ lf.file_id }}" alt="" loading="lazy"></td>
+    <td><a class="name" href="/files/{{ lf.file_id }}">{{ lf.name }}</a><span class="sub">{{ lf.root }}</span>{% if not lf.present %}<span class="sub only-sm"><span class="tag bad">ya no está en disco</span></span>{% endif %}</td>
+    <td class="num opt-sm">{{ lf.size_bytes|size }}</td>
     <td class="num">{{ per_file.get(lf.id, 0) }}</td>
-    <td>{% if lf.present %}<span class="tag ok">disponible</span>{% else %}<span class="tag bad">ya no está en disco</span>{% endif %}</td>
+    <td class="opt-sm">{% if lf.present %}<span class="tag ok">disponible</span>{% else %}<span class="tag bad">ya no está en disco</span>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 
 {% if link.mode == "request" %}
-<h2>Solicitudes de acceso</h2>
+<h2 id="solicitudes">Solicitudes de acceso <span class="count">{{ requests|length }}</span></h2>
 <p class="hint">El nombre y la nota los escribe el visitante: no son una identidad verificada. Aprueba solo a quien sepas por otro canal que lo ha pedido. Las solicitudes sin contestar caducan a los {{ request_ttl_days }} días.</p>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Nombre</th><th>Nota</th><th>Pedido</th><th>Desde</th><th>Estado</th><th></th></tr></thead>
+  <thead><tr><th>Nombre</th><th>Nota</th><th class="opt">Pedido</th><th class="opt">Desde</th><th>Estado</th><th class="cell-actions"><span class="sr-only">Acciones</span></th></tr></thead>
   <tbody>
   {% for r in requests %}
   <tr>
-    <td>{{ r.name }}</td>
+    <td class="row-title">{{ r.name }}</td>
     <td><pre class="plain">{{ r.note }}</pre></td>
-    <td>{{ r.created_at|local }}</td>
-    <td class="small"><span class="name">{{ r.ip or "" }}</span><br><span class="muted">{{ r.user_agent }}</span></td>
+    <td class="nowrap opt">{{ r.created_at|local }}</td>
+    <td class="small opt"><span class="name">{{ r.ip or "" }}</span><span class="sub">{{ r.user_agent }}</span></td>
     <td>{% if r.status == "pending" %}<span class="tag warn">pendiente</span>{% elif r.status == "approved" %}<span class="tag ok">aprobada</span>{% else %}<span class="tag">rechazada</span>{% endif %}</td>
-    <td>{% if r.status == "pending" and active %}<a class="button" href="/requests/{{ r.id }}">Resolver</a>{% endif %}</td>
+    <td class="cell-actions">{% if r.status == "pending" and active %}<a class="btn sm primary" href="/requests/{{ r.id }}">Resolver</a>{% endif %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="6" class="muted">Nadie ha pedido acceso todavía.</td></tr>
+  <tr><td colspan="6" class="empty"><p>Nadie ha pedido acceso todavía.</p></td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 
-<h2>Concesiones</h2>
+<h2>Personas con acceso <span class="count">{{ grants|length }}</span></h2>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Persona</th><th>Aprobada</th><th>Caduca</th><th class="num">Descargas</th><th>IPs distintas</th><th>Navegadores distintos</th><th>Estado</th><th></th></tr></thead>
+  <thead><tr><th>Persona</th><th class="opt">Aprobada</th><th class="opt-sm">Caduca</th><th class="num">Descargas</th><th class="num">IPs</th><th class="num opt">Navegadores</th><th>Estado</th><th class="cell-actions"><span class="sr-only">Acciones</span></th></tr></thead>
   <tbody>
   {% for g in grants %}
   {% set use = by_grant.get(g.id) %}
   <tr{% if use and (use.ips|length > 1 or use.agents|length > 1) %} class="warnrow"{% endif %}>
-    <td>{{ g.name }}</td>
-    <td>{{ g.created_at|local }}</td>
-    <td>{{ g.expires_at|local }}</td>
+    <td class="row-title">{{ g.name }}</td>
+    <td class="nowrap opt">{{ g.created_at|local }}</td>
+    <td class="nowrap opt-sm">{{ g.expires_at|local }}</td>
     <td class="num">{{ use.downloads if use else 0 }}</td>
-    <td>{{ use.ips|length if use else 0 }}{% if use and use.ips|length > 1 %} <span class="tag warn">¿código reenviado?</span>{% endif %}</td>
-    <td>{{ use.agents|length if use else 0 }}</td>
+    <td class="num">{{ use.ips|length if use else 0 }}{% if use and use.ips|length > 1 %} <span class="tag warn">¿código reenviado?</span>{% endif %}</td>
+    <td class="num opt">{{ use.agents|length if use else 0 }}</td>
     <td>{% if g.revoked_at %}<span class="tag bad">revocada</span>{% elif g.expires_at <= now %}<span class="tag">caducada</span>{% else %}<span class="tag ok">vigente</span>{% endif %}</td>
-    <td>{% if not g.revoked_at %}<form method="post" action="/grants/{{ g.id }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Revocar</button></form>{% endif %}</td>
+    <td class="cell-actions">{% if not g.revoked_at %}<form method="post" action="/grants/{{ g.id }}/revoke" class="inline" data-confirm="¿Quitar el acceso a «{{ g.name }}»? Su código dejará de funcionar."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="sm danger">Revocar</button></form>{% endif %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="8" class="muted">Ninguna.</td></tr>
+  <tr><td colspan="8" class="empty"><p>Todavía no has aprobado a nadie.</p></td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endif %}
 
-<h2>Descargas</h2>
+<h2>Descargas <span class="count">{{ tickets|length }}</span></h2>
 <p class="hint">Cada fila es una descarga iniciada (un ticket). Las reanudaciones del mismo ticket cuentan como peticiones dentro de la misma descarga.</p>
+<div class="table-wrap">
 <table data-sortable>
-  <thead><tr><th data-sort="text">Cuándo</th><th data-sort="text">Fichero</th>{% if link.mode == "request" %}<th data-sort="text">Persona</th>{% endif %}<th data-sort="text">IP</th><th data-sort="text">Navegador</th><th data-sort="num" class="num">Peticiones</th><th data-sort="text">Última petición</th></tr></thead>
+  <thead><tr><th data-sort="text">Cuándo</th><th data-sort="text">Fichero</th>{% if link.mode == "request" %}<th data-sort="text">Persona</th>{% endif %}<th data-sort="text" class="opt-sm">IP</th><th data-sort="text" class="opt">Navegador</th><th data-sort="num" class="num opt">Peticiones</th><th data-sort="text" class="opt">Última petición</th></tr></thead>
   <tbody>
   {% for t in tickets %}
   <tr>
-    <td data-value="{{ t.issued_at }}">{{ t.issued_at|local("%d/%m/%Y %H:%M:%S") }}</td>
+    <td class="nowrap" data-value="{{ t.issued_at }}">{{ t.issued_at|local("%d/%m/%Y %H:%M:%S") }}</td>
     <td class="name">{% if t.link_file_id == 0 %}<span class="tag">ZIP</span> {{ zip_entries.get(t.id, [])|join(", ") }}{% else %}{{ names.get(t.link_file_id, "?") }}{% endif %}</td>
     {% if link.mode == "request" %}<td>{{ grant_names.get(t.grant_id, "—") }}</td>{% endif %}
-    <td class="name">{{ t.ip or "" }}</td>
-    <td class="small">{{ t.user_agent }}</td>
-    <td class="num">{{ t.requests }}</td>
-    <td>{{ t.last_request|local("%d/%m %H:%M:%S") if t.last_request else "sin empezar" }}</td>
+    <td class="name opt-sm">{{ t.ip or "" }}</td>
+    <td class="small opt">{{ t.user_agent }}</td>
+    <td class="num opt">{{ t.requests }}</td>
+    <td class="nowrap opt">{{ t.last_request|local("%d/%m %H:%M:%S") if t.last_request else "sin empezar" }}</td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="muted">Nadie ha descargado nada todavía.</td></tr>
+  <tr><td colspan="7" class="empty"><p>Nadie ha descargado nada todavía.</p></td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
+</div>
+
+<aside class="panel divided" aria-label="Gestionar el enlace">
+  <div>
+    <h2>Gestionar</h2>
+    <p class="hint">La URL no se puede volver a mostrar: se guarda hasheada. Si la has perdido, crea otro enlace con los mismos ficheros.</p>
+  </div>
+  {% if not link.revoked_at %}
+  <form method="post" action="/links/{{ link.id }}/renew">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="days">{% if active %}Cambiar la caducidad{% else %}Reactivar{% endif %}</label>
+      <div class="inline-fields">
+        <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="7" required> <span>días desde hoy</span>
+      </div>
+      <div class="presets js-only">
+        <button type="button" class="sm ghost" data-days="1">1 día</button>
+        <button type="button" class="sm ghost" data-days="7">1 semana</button>
+        <button type="button" class="sm ghost" data-days="30">1 mes</button>
+      </div>
+    </div>
+    <button>{% if active %}Renovar{% else %}Reactivar{% endif %}</button>
+  </form>
+  {% endif %}
+  {% if files|length >= min_zip_files %}
+  <div>
+    <h3>ZIP con todo</h3>
+    <p>
+      {% if not zip_enabled %}<span class="tag">desactivado</span>
+      {% elif zip is none %}<span class="muted">No se genera: quedan menos de {{ min_zip_files }} ficheros disponibles.</span>
+      {% elif zip.state == "ready" %}<span class="tag ok">listo</span> {{ zip.size_bytes|size }} <span class="sub muted">generado {{ zip.built_at|local }}</span>
+      {% elif zip.state == "building" %}<span class="tag accent">generándose</span>
+      {% elif zip.state == "pending" %}<span class="tag accent">en cola</span>
+      {% elif zip.state == "skipped" %}<span class="tag bad">no se genera</span> {{ zip.problem }}
+      {% else %}<span class="tag bad">ha fallado</span> {{ zip.problem }}{% endif %}
+    </p>
+    <form method="post" action="/links/{{ link.id }}/zip" class="inline-fields">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% if zip_enabled %}
+      <button name="action" value="regenerate" class="sm">Regenerar el ZIP</button>
+      <button name="action" value="disable" class="sm ghost">Quitar el ZIP</button>
+      {% else %}
+      <button name="action" value="enable" class="sm">Ofrecer un ZIP con todo</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endif %}
+  <div class="small muted">Creado el {{ link.created_at|local }} por {{ link.created_by }}.</div>
+</aside>
+</div>
 {% endblock %}
