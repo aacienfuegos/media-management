@@ -15,7 +15,7 @@
 <div class="table-wrap">
 <table data-sortable id="links-table">
   <thead><tr><th data-sort="text">Título</th><th data-sort="text" class="opt-sm">Acceso</th><th data-sort="num" class="num opt">Ficheros</th>
-    <th data-sort="num" class="num">Descargas</th><th data-sort="text" class="opt">Última</th><th data-sort="text" class="opt">Creado</th><th data-sort="text" class="opt-sm">Caduca</th><th>Estado</th></tr></thead>
+    <th data-sort="num" class="num">Descargas</th><th data-sort="text" class="opt">Última</th><th data-sort="text" class="opt">Creado</th><th data-sort="text" class="opt-sm">Caduca</th>{% if show != "active" %}<th>Estado</th>{% endif %}</tr></thead>
   <tbody>
   {% for l in links %}
   <tr>
@@ -26,7 +26,7 @@
     <td class="opt" data-value="{{ stats[l.id].last or '' }}">{{ stats[l.id].last|ago if stats[l.id].last else "—" }}</td>
     <td class="nowrap opt" data-value="{{ l.created_at }}">{{ l.created_at|local }}</td>
     <td class="nowrap opt-sm" data-value="{{ l.expires_at }}">{{ l.expires_at|local }} <span class="sub">{{ l.expires_at|ago }}</span></td>
-    <td>{% if l.revoked_at %}<span class="tag bad">revocado</span>{% elif l.expires_at <= now %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>
+    {% if show != "active" %}<td>{% if l.revoked_at %}<span class="tag bad">revocado</span>{% elif l.expires_at <= now %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</td>{% endif %}
   </tr>
   {% else %}
   <tr><td colspan="8" class="empty">

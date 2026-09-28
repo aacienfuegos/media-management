@@ -70,13 +70,13 @@
     <td class="cell-thumb"><a href="/files/{{ f.id }}" tabindex="-1" aria-hidden="true"><img class="thumb" src="/thumb/{{ f.id }}" alt="" loading="lazy"></a></td>
     <td><a class="name" href="/files/{{ f.id }}">{{ f.name if root else f.relpath }}</a>{% if f.meta_error %} <span class="tag warn" title="{{ f.meta_error }}">metadatos ilegibles</span>{% endif %}
       <span class="sub only-sm">{% if not root %}{{ f.root }} · {% endif %}{{ f.date_utc|local }}</span></td>
-    {% if not root %}<td class="opt-sm"><a href="/library?root={{ f.root|urlencode }}">{{ f.root }}</a></td>{% endif %}
+    {% if not root %}<td class="opt-sm"><a class="tag" href="/library?root={{ f.root|urlencode }}">{{ f.root }}</a></td>{% endif %}
     <td class="opt">{{ icons[f.kind] }}</td>
     <td class="num" data-value="{{ f.size_bytes }}">{{ f.size_bytes|size }}</td>
     <td class="nowrap opt-sm" data-value="{{ f.date_utc or '' }}">{{ f.date_utc|local }}{% if f.date_source and f.date_source != "mp4_mvhd" %} <span class="tag" title="{{ f.date_source }}">{% if f.date_source.startswith("exif+desfase") %}EXIF + desfase{% elif f.date_source == "mtime" %}fecha del fichero{% else %}EXIF{% endif %}</span>{% endif %}</td>
     <td class="num opt" data-value="{{ f.duration_s or 0 }}">{{ f.duration_s|duration if f.duration_s else "—" }}</td>
     <td class="opt">{% if f.width %}{{ f.width }}×{{ f.height }}{% else %}—{% endif %}</td>
-    {% if jellyfin %}<td class="opt">{% if not r.indexed_by_jellyfin %}—{% elif f.jellyfin_item_id %}<span class="tag ok">indexado</span>{% else %}<span class="tag warn">aún no</span>{% endif %}</td>{% endif %}
+    {% if jellyfin %}<td class="opt">{% if not r.indexed_by_jellyfin %}—{% elif f.jellyfin_item_id %}<span class="tag ok">indexado</span>{% else %}<span class="tag">pendiente</span>{% endif %}</td>{% endif %}
   </tr>
   {% else %}
   <tr><td colspan="10" class="empty">

@@ -6,15 +6,9 @@
 <div class="page-head">
   <h1>{{ link.title }}
     {% if link.revoked_at %}<span class="tag bad">revocado</span>{% elif not active %}<span class="tag">caducado</span>{% else %}<span class="tag ok">activo</span>{% endif %}</h1>
-  {% if not link.revoked_at %}
-  <form method="post" action="/links/{{ link.id }}/revoke" class="actions" data-confirm="¿Revocar «{{ link.title }}»? Nadie podrá abrirlo ni reanudar descargas, y no se puede deshacer.">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="danger">Revocar el enlace</button>
-  </form>
-  {% endif %}
 </div>
 
-<section class="stats" aria-label="Resumen">
+<section class="stats compact" aria-label="Resumen">
   <div class="stat"><div class="label">Acceso</div><div class="value sm">{% if link.mode == "open" %}Abierto{% elif link.mode == "password" %}Con contraseña{% else %}Por solicitud{% endif %}</div>
     <div class="sub">{% if link.mode == "open" %}quien tenga el enlace{% elif link.mode == "password" %}enlace + contraseña{% else %}enlace + aprobación por persona{% endif %}</div></div>
   <div class="stat"><div class="label">{% if link.revoked_at %}Revocado{% elif active %}Caduca{% else %}Caducó{% endif %}</div>
@@ -135,9 +129,9 @@
         <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="7" required> <span>días desde hoy</span>
       </div>
       <div class="presets js-only">
-        <button type="button" class="sm ghost" data-days="1">1 día</button>
-        <button type="button" class="sm ghost" data-days="7">1 semana</button>
-        <button type="button" class="sm ghost" data-days="30">1 mes</button>
+        <button type="button" data-days="1">1 día</button>
+        <button type="button" data-days="7">1 semana</button>
+        <button type="button" data-days="30">1 mes</button>
       </div>
     </div>
     <button>{% if active %}Renovar{% else %}Reactivar{% endif %}</button>
@@ -165,6 +159,14 @@
       {% endif %}
     </form>
   </div>
+  {% endif %}
+  {% if not link.revoked_at %}
+  <form method="post" action="/links/{{ link.id }}/revoke" data-confirm="¿Revocar «{{ link.title }}»? Nadie podrá abrirlo ni reanudar descargas, y no se puede deshacer.">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h3>Revocar</h3>
+    <p class="hint">Corta el acceso para siempre. No se puede deshacer.</p>
+    <button class="danger">Revocar el enlace</button>
+  </form>
   {% endif %}
   <div class="small muted">Creado el {{ link.created_at|local }} por {{ link.created_by }}.</div>
 </aside>

@@ -20,7 +20,7 @@
 </div>
 {% if not f.present %}<div class="banner warn">Este fichero ya no está en disco: se ha movido a la papelera o ha desaparecido.</div>{% endif %}
 {% if f.present and blockers %}
-<div class="banner info"><strong>No se puede mover a la papelera.</strong>
+<div class="banner warn"><strong>No se puede mover a la papelera.</strong>
   <ul>{% for b in blockers %}<li>{{ b }}.</li>{% endfor %}</ul>
 </div>
 {% endif %}
@@ -52,10 +52,10 @@
       <tr><th>Tipo</th><td>{{ icons[f.kind] }}</td></tr>
       <tr><th>Tamaño</th><td>{{ f.size_bytes|size }} <span class="sub muted">{{ "{:,}".format(f.size_bytes).replace(",", ".") }} bytes</span></td></tr>
       <tr><th>Captura</th><td>{{ f.date_utc|local }} <span class="sub muted">{{ f.date_utc or "" }} UTC</span></td></tr>
-      <tr><th>Origen de la fecha</th><td>{{ f.date_source or "sin fecha fiable" }}</td></tr>
+      <tr><th>Origen de la fecha</th><td>{% if not f.date_source %}sin fecha fiable{% else %}<span title="{{ f.date_source }}">{% if f.date_source.startswith("exif+desfase") %}EXIF corregido con desfase{% elif f.date_source == "mtime" %}fecha del fichero{% elif f.date_source == "mp4_mvhd" %}metadatos del vídeo{% elif f.date_source.startswith("exif") %}EXIF{% else %}{{ f.date_source }}{% endif %}</span>{% endif %}</td></tr>
       {% if f.duration_s %}<tr><th>Duración</th><td>{{ f.duration_s|duration }}</td></tr>{% endif %}
       {% if f.width %}<tr><th>Resolución</th><td>{{ f.width }}×{{ f.height }}</td></tr>{% endif %}
-      {% if root.indexed_by_jellyfin %}<tr><th>Jellyfin</th><td>{% if f.jellyfin_item_id %}<span class="tag ok">indexado</span> <span class="sub name muted">{{ f.jellyfin_item_id }}</span>{% else %}<span class="tag warn">aún no indexado</span>{% endif %}</td></tr>{% endif %}
+      {% if root.indexed_by_jellyfin %}<tr><th>Jellyfin</th><td>{% if f.jellyfin_item_id %}<span class="tag ok">indexado</span> <span class="sub name muted">{{ f.jellyfin_item_id }}</span>{% else %}<span class="tag">pendiente de indexar</span>{% endif %}</td></tr>{% endif %}
       {% if f.meta_error %}<tr><th>Metadatos</th><td><span class="tag warn">ilegibles</span> {{ f.meta_error }}</td></tr>{% endif %}
       <tr><th>Visto por primera vez</th><td>{{ f.first_seen|local }}</td></tr>
       <tr><th>Visto por última vez</th><td>{{ f.last_seen|local }}</td></tr>

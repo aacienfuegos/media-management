@@ -18,7 +18,7 @@
       {% if r.link_id in approvable %}
       <form method="post" action="/requests/{{ r.id }}/approve" class="inline-fields">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <label class="sr-only" for="days-{{ r.id }}">Días de acceso para {{ r.name }}</label>
+        <label class="small muted" for="days-{{ r.id }}">Acceso durante<span class="sr-only"> para {{ r.name }}</span></label>
         <input id="days-{{ r.id }}" name="days" type="number" min="1" max="{{ max_days }}" value="{{ approvable[r.link_id] }}" required title="Días de acceso; por defecto, lo que le queda al enlace">
         <span class="small muted">días</span>
         <button class="primary">Aprobar</button>
