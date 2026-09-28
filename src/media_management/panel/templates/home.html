@@ -7,7 +7,7 @@
 
 <section class="cards">
   {% for name, root in roots.items() %}
-  <a class="card" href="/roots/{{ name }}">
+  <a class="card" href="/library?root={{ name|urlencode }}">
     <h2>{{ name }}</h2>
     <p class="big">{{ counts[name].files }} <span>ficheros</span></p>
     <p class="muted">{{ counts[name].bytes|size }}</p>

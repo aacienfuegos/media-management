@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ f.name }}{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/roots/{{ root.name }}">{{ root.name }}</a> / <span class="name">{{ f.relpath }}</span></p>
+<p class="crumbs"><a href="/library?root={{ root.name|urlencode }}">{{ root.name }}</a> / <span class="name">{{ f.relpath }}</span></p>
 <h1 class="name">{{ f.name }}</h1>
 {% if not f.present %}<div class="banner warn">Este fichero ya no está en disco (movido a la papelera o desaparecido).</div>{% endif %}
 <div class="grid2">

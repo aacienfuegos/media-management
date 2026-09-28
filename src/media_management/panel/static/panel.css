@@ -44,6 +44,12 @@ a:hover { text-decoration: underline; }
 .top nav a { color: var(--muted); }
 .top nav a:hover { color: var(--text); text-decoration: none; }
 .top nav a[aria-current="page"] { color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+.top nav.secondary { flex: 0 1 auto; font-size: .85rem; padding-left: 1rem; border-left: 1px solid var(--border); }
+.segmented { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: .8rem; background: var(--surface); }
+.segmented a { padding: .35rem .9rem; color: var(--muted); border-right: 1px solid var(--border); }
+.segmented a:last-child { border-right: 0; }
+.segmented a:hover { color: var(--text); text-decoration: none; background: var(--row-hover); }
+.segmented a[aria-current="page"] { background: var(--accent); color: var(--accent-text); }
 .who { color: var(--muted); font-size: .85rem; }
 main { padding: 1.25rem; max-width: 1400px; margin: 0 auto; }
 h1 { font-size: 1.4rem; margin: .2rem 0 1rem; }
@@ -74,10 +80,11 @@ tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: var(--row-hover); }
 table.kv th { width: 16rem; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-th.sortable { cursor: pointer; user-select: none; }
-th.sortable::after { content: " ↕"; opacity: .4; }
-th.sorted-asc::after { content: " ↑"; opacity: 1; }
-th.sorted-desc::after { content: " ↓"; opacity: 1; }
+.sortable { cursor: pointer; user-select: none; }
+a.sortable { display: block; color: inherit; text-decoration: none; }
+.sortable::after { content: " ↕"; opacity: .4; }
+.sorted-asc::after { content: " ↑"; opacity: 1; }
+.sorted-desc::after { content: " ↓"; opacity: 1; }
 .thumb { width: 96px; height: 54px; object-fit: cover; border-radius: 4px; background: var(--row-hover); display: block; }
 .thumb.big { width: 320px; height: 180px; }
 .name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; word-break: break-all; }

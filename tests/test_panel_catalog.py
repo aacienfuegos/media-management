@@ -75,7 +75,7 @@ def test_file_names_are_escaped(env: Env, panel: TestClient) -> None:
     evil = '<img src=x onerror=alert(2)>"\' <script>.txt'
     (env.root("send") / evil).write_text("x")
     cycle(env.settings)
-    page = panel.get("/roots/send").text
+    page = panel.get("/library", params={"root": "send"}).text
     assert "<img src=x" not in page and "<script>" not in page
     assert "&lt;img src=x onerror=alert(2)&gt;" in page
     detail = panel.get(f"/files/{file_id(env, 'send', evil)}").text
@@ -86,13 +86,23 @@ def test_root_filters_and_views(env: Env, panel: TestClient) -> None:
     for n in ("alpha.txt", "beta.txt", "gamma.jpg"):
         (env.root("send") / n).write_text(n * 10)
     cycle(env.settings)
-    assert "beta.txt" not in panel.get("/roots/send", params={"q": "alp"}).text
-    only_other = panel.get("/roots/send", params={"kind": "photo"}).text
+    assert "beta.txt" not in panel.get("/library", params={"root": "send", "q": "alp"}).text
+    only_other = panel.get("/library", params={"root": "send", "kind": "photo"}).text
     assert "gamma.jpg" in only_other and "alpha.txt" not in only_other
-    assert panel.get("/roots/nada").status_code == 404
+    assert panel.get("/library", params={"root": "nada"}).status_code == 404
     assert panel.get("/files/424242").status_code == 404
     assert panel.get("/manifest").status_code == 200
     assert panel.get("/manifest/compare").status_code == 200
+
+
+def test_library_lists_every_root_recursively(env: Env, panel: TestClient) -> None:
+    (env.root("send") / "viaje").mkdir()
+    (env.root("send") / "viaje" / "hondo.txt").write_text("x")
+    (env.root("buceo") / "clip.MP4").write_bytes(b"x")
+    cycle(env.settings)
+    page = panel.get("/library").text
+    assert "viaje/hondo.txt" in page and "clip.MP4" in page
+    assert "hondo.txt" not in panel.get("/library", params={"root": "buceo"}).text
 
 
 def test_delete_is_blocked_where_second_copy_is_required(env: Env, panel: TestClient) -> None:
@@ -105,3 +115,21 @@ def test_delete_is_blocked_where_second_copy_is_required(env: Env, panel: TestCl
     loose_id = file_id(env, "send", "suelto.txt")
     loose = panel.get(f"/files/{loose_id}").text
     assert f'href="/files/{loose_id}/trash"' in loose and "no consta una segunda copia" not in loose
+
+
+def test_library_sort_spans_every_page(env: Env, panel: TestClient,
+                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("media_management.panel.catalog_routes.PAGE", 2)
+    for i, n in enumerate(("a.txt", "b.txt", "c.txt", "d.txt")):
+        (env.root("send") / n).write_text("x" * (i + 1))
+    cycle(env.settings)
+    first = panel.get("/library", params={"root": "send", "sort": "size", "order": "desc"}).text
+    assert "d.txt" in first and "c.txt" in first and "a.txt" not in first
+    assert 'class="sortable sorted-desc"' in first
+    assert "sort=size&order=asc" in first
+    second = panel.get("/library", params={"root": "send", "sort": "size", "order": "desc", "page": 2}).text
+    assert "a.txt" in second and "d.txt" not in second
+    default = panel.get("/library", params={"root": "send"}).text
+    assert '<a class="sortable sorted-desc" href="?root=send&amp;dir=&amp;q=&amp;kind=&sort=date&order=asc">Captura' in default
+    for key in ("root", "duration", "resolution"):
+        assert panel.get("/library", params={"sort": key}).status_code == 200
