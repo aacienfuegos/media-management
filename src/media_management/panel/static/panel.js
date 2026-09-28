@@ -173,6 +173,27 @@ function setupPresets() {
   }
 }
 
+function setupTheme() {
+  const buttons = document.querySelectorAll("button[data-theme-choice]");
+  const sync = () => {
+    const current = document.documentElement.dataset.theme ?? "system";
+    for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.themeChoice === current));
+  };
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      const choice = button.dataset.themeChoice;
+      if (choice === "system") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = choice;
+      try {
+        if (choice === "system") localStorage.removeItem("mm-theme");
+        else localStorage.setItem("mm-theme", choice);
+      } catch {}
+      sync();
+    });
+  }
+  sync();
+}
+
 function setupShortcuts() {
   let pendingG = 0;
   const targets = { b: "/library", e: "/links", s: "/requests", p: "/trash" };
@@ -250,6 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupModeToggle();
   setupPresets();
   setupShortcuts();
+  setupTheme();
 
   const url = new URL(location.href);
   if (url.searchParams.has("hecho")) {
