@@ -182,7 +182,7 @@ async def renew_link(request: Request, link_id: int, user: CsrfUser, conn: MainD
     await audit(conn, user, "link_renewed", "ok", target=token_ref(link["token_hash"]), ip=client_ip(request),
                 link_id=link_id, expires_at=new_expiry)
     await conn.commit()
-    return RedirectResponse(f"/links/{link_id}", status_code=303)
+    return RedirectResponse(f"/links/{link_id}?hecho=renewed", status_code=303)
 
 
 @router.post("/links/{link_id}/revoke")
@@ -194,7 +194,7 @@ async def revoke_link(request: Request, link_id: int, user: CsrfUser, conn: Main
     await audit(conn, user, "link_revoked", "ok", target=token_ref(link["token_hash"]), ip=client_ip(request),
                 link_id=link_id)
     await conn.commit()
-    return RedirectResponse(f"/links/{link_id}", status_code=303)
+    return RedirectResponse(f"/links/{link_id}?hecho=revoked", status_code=303)
 
 
 @router.post("/links/{link_id}/zip")
@@ -213,4 +213,4 @@ async def link_zip(request: Request, link_id: int, user: CsrfUser, conn: MainDb,
     await audit(conn, user, f"link_zip_{action}", "ok", target=token_ref(link["token_hash"]),
                 ip=client_ip(request), link_id=link_id)
     await conn.commit()
-    return RedirectResponse(f"/links/{link_id}", status_code=303)
+    return RedirectResponse(f"/links/{link_id}?hecho=zip_{action}", status_code=303)

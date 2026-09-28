@@ -180,7 +180,7 @@ def test_password_mode_and_bruteforce_protection(env: Env, panel: TestClient, pu
     assert ok.status_code == 200
     fid = ok.json()["files"][0]["id"]
     assert public.get(ticket_url(public, token, fid, password="buceo-en-grupo")).status_code == 200
-    assert "Credenciales fallidas</th><td>10" in panel.get(f"/links/{link_id}").text
+    assert "Credenciales fallidas</div><div class=\"value\">10<" in panel.get(f"/links/{link_id}").text
 
 
 def test_link_delay_grows_with_failures(env: Env, panel: TestClient) -> None:

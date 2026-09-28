@@ -78,7 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await set_state(conn, "scan_requested", now_iso())
         await audit(conn, user, "scan_requested", "ok", ip=client_ip(request))
         await conn.commit()
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/?hecho=scan", status_code=303)
 
     app.include_router(catalog_routes.router)
     app.include_router(admin_routes.router)

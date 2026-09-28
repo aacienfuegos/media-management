@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Comparación del manifiesto{% endblock %}
 {% block content %}
-<h1>Candidato contra manifiesto actual</h1>
-<p class="muted">Durante el traspaso, el manifiesto que escribe esta app se compara clip a clip con el que sigue escribiendo el generador anterior: misma identidad, mismo ID, misma fecha, mismo tamaño. Si difieren, manda el anterior.</p>
+<nav class="crumbs" aria-label="Ubicación"><a href="/manifest">Manifiesto</a></nav>
+<div class="page-head"><h1>Candidato contra manifiesto actual</h1></div>
+<p class="hint">Durante el traspaso, el manifiesto que escribe esta app se compara clip a clip con el que sigue escribiendo el generador anterior: misma identidad, mismo ID, misma fecha, mismo tamaño. Si difieren, manda el anterior.</p>
 {% if not configured %}
 <p class="muted">No hay manifiesto actual configurado para comparar (<code>MM_MANIFEST_COMPARE_WITH</code>).</p>
 {% elif not comparison %}
@@ -16,6 +17,7 @@
 </div>
 <p class="hint">Si los dos se generaron con minutos de diferencia, un clip recién copiado o recién indexado puede aparecer como diferencia en una pasada y desaparecer en la siguiente. Una diferencia que se repite es real.</p>
 {% if comparison.differences %}
+<div class="table-wrap">
 <table>
   <thead><tr><th>jellyfin_path</th><th>Diferencia</th><th>Candidato</th><th>Actual</th></tr></thead>
   <tbody>
@@ -24,6 +26,7 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endif %}
 {% endif %}
 {% endblock %}
