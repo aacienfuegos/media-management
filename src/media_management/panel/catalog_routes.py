@@ -13,7 +13,8 @@ from media_management.thumbs import get_thumb, thumb_item_id
 
 router = APIRouter()
 PAGE = 200
-SORTS = {"name": "relpath COLLATE NOCASE", "date": "date_utc", "size": "size_bytes", "kind": "kind"}
+SORTS = {"name": "relpath COLLATE NOCASE", "root": "root", "kind": "kind", "size": "size_bytes",
+         "date": "date_utc", "duration": "duration_s", "resolution": "width * height"}
 ICONS = {"video": "vídeo", "photo": "foto", "other": "fichero"}
 
 
@@ -32,8 +33,8 @@ def _subdirs(relpaths: list[str], current: str) -> list[str]:
 async def library(request: Request, user: User, conn: MainDb,
                   root: str = "", dir: str = "", q: str = Query("", max_length=200),
                   kind: Literal["", "video", "photo", "other"] = "",
-                  sort: Literal["name", "date", "size", "kind"] = "name",
-                  order: Literal["asc", "desc"] = "asc", page: int = Query(1, ge=1)) -> Response:
+                  sort: Literal["name", "root", "kind", "size", "date", "duration", "resolution"] = "date",
+                  order: Literal["asc", "desc"] = "desc", page: int = Query(1, ge=1)) -> Response:
     roots = roots_of(request)
     if root and root not in roots:
         raise HTTPException(404)
