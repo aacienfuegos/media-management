@@ -5,7 +5,9 @@
 <form class="toolbar" method="get" action="/audit" data-autosubmit>
   <select name="action" aria-label="Filtrar por acción">
     <option value="">Todas las acciones</option>
-    {% for a in actions %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    {% for category, items in groups %}<optgroup label="{{ category }}">
+      {% for a, label in items %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </optgroup>{% endfor %}
   </select>
   <button class="no-js">Filtrar</button>
   {% if action %}<a class="btn ghost" href="/audit">Quitar filtro</a>{% endif %}
@@ -18,11 +20,11 @@
   <tr>
     <td class="nowrap">{{ r.ts|local("%d/%m/%Y %H:%M:%S") }}</td>
     <td class="opt-sm">{{ r.actor }}</td>
-    <td><code>{{ r.action }}</code></td>
-    <td>{% if r.link_id %}<a href="/links/{{ r.link_id }}">{{ r.target }}</a>{% else %}<span class="name">{{ r.target or "" }}</span>{% endif %}</td>
-    <td>{% if r.result == "ok" %}<span class="tag ok">ok</span>{% else %}<span class="tag warn">{{ r.result }}</span>{% endif %}</td>
-    <td class="name opt">{{ r.ip or "" }}</td>
-    <td class="small opt">{% if r.detail_obj %}{% for k, v in r.detail_obj.items() %}{{ k }}={{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</td>
+    <td class="nowrap" title="{{ r.action }}">{{ r.label }}</td>
+    <td>{% if r.link_id %}<a href="/links/{{ r.link_id }}">{{ r.target or "enlace " ~ r.link_id }}</a>{% else %}<span class="name">{{ r.target or "" }}</span>{% endif %}</td>
+    <td>{% if r.result == "ok" %}<span class="tag ok">ok</span>{% else %}<span class="tag warn">{{ r.result_label }}</span>{% endif %}</td>
+    <td class="nowrap opt"><code>{{ r.ip or "" }}</code></td>
+    <td class="small opt">{% for k, v in r["items"] %}<span class="muted">{{ k }}</span> {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
   </tr>
   {% else %}
   <tr><td colspan="7" class="empty"><p>Sin entradas{% if action %} para esa acción{% endif %}.</p></td></tr>
