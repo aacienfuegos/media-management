@@ -1,27 +1,27 @@
 :root {
   color-scheme: light dark;
-  --bg: light-dark(#f4f5f7, #0e1116);
-  --surface: light-dark(#ffffff, #161a21);
-  --surface-2: light-dark(#eef0f3, #1e232c);
-  --text: light-dark(#161b26, #e6e9ef);
-  --muted: light-dark(#586173, #9ba4b4);
-  --border: light-dark(#dde1e8, #2a303b);
-  --border-strong: light-dark(#c3c9d4, #3b4350);
-  --accent: light-dark(#0a62bd, #5ca8ff);
-  --accent-hover: light-dark(#084f99, #86bfff);
-  --accent-soft: light-dark(#e5effa, #15253a);
-  --on-accent: light-dark(#ffffff, #07111f);
-  --ok: light-dark(#146c2e, #62d185);
-  --ok-bg: light-dark(#e2f3e7, #11291a);
-  --warn: light-dark(#7d5200, #e6b94a);
-  --warn-bg: light-dark(#fff2d1, #2b2210);
+  --bg: light-dark(#f6f4f0, #121110);
+  --surface: light-dark(#ffffff, #1b1a18);
+  --surface-2: light-dark(#efece6, #252320);
+  --text: light-dark(#1d1b18, #ece8e1);
+  --muted: light-dark(#6a6459, #a39d92);
+  --border: light-dark(#e3ded5, #2f2c28);
+  --border-strong: light-dark(#cbc4b8, #45413a);
+  --accent: light-dark(#b34d12, #f08a4b);
+  --accent-hover: light-dark(#8f3c0c, #f6a574);
+  --accent-soft: light-dark(#fbeade, #3a2417);
+  --on-accent: light-dark(#ffffff, #1a0d05);
+  --ok: light-dark(#1f6b3a, #6fcf8e);
+  --ok-bg: light-dark(#e4f2e8, #142a1c);
+  --warn: light-dark(#7a5a00, #d9b54a);
+  --warn-bg: light-dark(#f7efd6, #2a2412);
   --bad: light-dark(#b3261e, #ff8f86);
-  --bad-bg: light-dark(#fdeceb, #3a1614);
-  --row-hover: light-dark(#f5f8fc, #1a1f27);
-  --row-selected: light-dark(#e8f1fb, #16263b);
-  --shadow-color: light-dark(rgb(16 24 40 / .08), rgb(0 0 0 / .4));
+  --bad-bg: light-dark(#fcebea, #3a1614);
+  --row-hover: light-dark(#faf8f4, #201e1b);
+  --row-selected: light-dark(#fbeade, #2e2016);
+  --shadow-color: light-dark(rgb(40 30 15 / .08), rgb(0 0 0 / .45));
   --shadow: 0 1px 2px var(--shadow-color), 0 1px 3px var(--shadow-color);
-  --radius: 8px;
+  --radius: 10px;
 }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
@@ -34,7 +34,7 @@ a:hover { text-decoration: underline; }
 main:focus { outline: none; }
 .skip { position: absolute; left: -999px; top: .5rem; background: var(--surface); padding: .5rem 1rem; z-index: 20; }
 .skip:focus { left: .5rem; }
-h1 { font-size: 1.35rem; line-height: 1.25; margin: 0; }
+h1 { font-size: 1.4rem; line-height: 1.25; margin: 0; letter-spacing: -.015em; }
 h2 { font-size: 1.05rem; margin: 1.75rem 0 .6rem; }
 h2 .count { color: var(--muted); font-weight: 400; }
 p { margin: .4rem 0; }
@@ -63,7 +63,7 @@ html:not(.js) .js-only, .js .no-js { display: none !important; }
 .more summary::-webkit-details-marker { display: none; }
 .more summary::after { content: ""; display: inline-block; margin-left: .4rem; border: 4px solid transparent; border-top-color: currentColor; vertical-align: -.1rem; }
 .more summary:hover { background: var(--surface-2); color: var(--text); }
-.more nav { position: absolute; right: 0; top: calc(100% + .35rem); display: flex; flex-direction: column; min-width: 13rem; padding: .35rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(16 24 40 / .16); }
+.more nav { position: absolute; right: 0; top: calc(100% + .35rem); display: flex; flex-direction: column; min-width: 13rem; padding: .35rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 2px 4px var(--shadow-color), 0 12px 28px var(--shadow-color); }
 .theme { display: flex; gap: .25rem; padding: .35rem .7rem .45rem; }
 .theme button { flex: 1; min-height: 1.9rem; padding: .2rem .4rem; font-size: .8rem; color: var(--muted); background: var(--surface-2); border-color: transparent; }
 .theme button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
