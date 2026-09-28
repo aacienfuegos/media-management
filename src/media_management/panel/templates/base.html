@@ -12,13 +12,15 @@
 <header class="top">
   <a class="brand" href="/">media</a>
   {% set path = request.url.path %}
-  {% macro tab(href, label) %}<a href="{{ href }}"{% if path == href or path.startswith(href ~ '/') %} aria-current="page"{% endif %}>{{ label }}</a>{% endmacro %}
+  {% macro tab(href, label, also=()) %}<a href="{{ href }}"{% if path == href or path.startswith(href ~ '/') or path.startswith(also) %} aria-current="page"{% endif %}>{{ label }}</a>{% endmacro %}
   <nav>
-    {% for name in roots %}{{ tab('/roots/' ~ name, name) }}{% endfor %}
-    {{ tab('/manifest', 'Manifiesto') }}
+    {{ tab('/library', 'Biblioteca', ('/files/',)) }}
     {{ tab('/links', 'Enlaces') }}
     {{ tab('/requests', 'Solicitudes') }}
     {{ tab('/trash', 'Papelera') }}
+  </nav>
+  <nav class="secondary">
+    {{ tab('/manifest', 'Manifiesto') }}
     {{ tab('/tokens', 'Tokens API') }}
     {{ tab('/audit', 'Registro') }}
   </nav>

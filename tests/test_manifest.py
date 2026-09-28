@@ -118,7 +118,7 @@ def test_catalog_keeps_known_ids_when_export_is_unusable(env: Env, panel: TestCl
     assert env.settings.jellyfin_ids_file is not None
     env.settings.jellyfin_ids_file.unlink()
     cycle(env.settings)
-    files = panel.get("/roots/buceo").text
+    files = panel.get("/library", params={"root": "buceo"}).text
     assert files.count("indexado</span>") == 2
 
 
@@ -141,7 +141,7 @@ def test_unmounted_media_is_not_an_empty_library(env: Env, panel: TestClient) ->
         f.unlink()
     cycle(env.settings)
     assert env.settings.manifest_path.read_bytes() == before
-    assert "DJI_20310310104500_0001_D.MP4" in panel.get("/roots/buceo").text
+    assert "DJI_20310310104500_0001_D.MP4" in panel.get("/library", params={"root": "buceo"}).text
     assert state(env.settings, "media_problem")
 
 
@@ -154,15 +154,15 @@ def test_scan_tracks_changes_and_skips_symlinks_and_hidden(env: Env, panel: Test
     (s / ".borrador").write_text("x")
     os.symlink(env.base.parent / "roots.toml", s / "enlace.toml")
     cycle(env.settings)
-    root_page = panel.get("/roots/send").text
+    root_page = panel.get("/library", params={"root": "send"}).text
     assert "notas.txt" in root_page and "enlace.toml" not in root_page and ".borrador" not in root_page
     assert "clip.mp4" not in root_page and "viaje" in root_page
-    assert "clip.mp4" in panel.get("/roots/send", params={"dir": "viaje"}).text
+    assert "clip.mp4" in panel.get("/library", params={"root": "send", "dir": "viaje"}).text
     (s / "notas.txt").unlink()
     cycle(env.settings)
     scan = json.loads(state(env.settings, "last_scan") or "{}")
     assert scan["roots"]["send"]["gone"] == 1
-    assert "notas.txt" not in panel.get("/roots/send").text
+    assert "notas.txt" not in panel.get("/library", params={"root": "send"}).text
 
 
 @needs_ffmpeg
