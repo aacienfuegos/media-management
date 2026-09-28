@@ -156,9 +156,38 @@ function showPending() {
 
 const KINDS = { video: "Vídeo", photo: "Foto" };
 
-function thumbFor(file) {
-  if (file.thumb) return el("img", { class: "thumb", src: file.thumb, alt: "" });
-  return el("div", { class: "thumb icon" }, icon(KINDS[file.kind] ? file.kind : "file", 28));
+function thumbFor(row) {
+  const { file } = row;
+  if (!file.thumb) return el("div", { class: "thumb icon" }, icon(KINDS[file.kind] ? file.kind : "file", 28));
+  const button = el("button", { type: "button", class: "thumb-btn", "aria-label": `Ver ${file.name} en grande` },
+    el("img", { class: "thumb", src: file.thumb, alt: "" }), el("span", { class: "zoom" }, icon("zoom", 16)));
+  button.addEventListener("click", () => preview(row));
+  return button;
+}
+
+let previewDialog = null;
+
+function preview(row) {
+  const { file } = row;
+  if (!previewDialog) {
+    previewDialog = el("dialog", { class: "preview" });
+    previewDialog.addEventListener("click", (e) => { if (e.target === previewDialog) previewDialog.close(); });
+    document.body.append(previewDialog);
+  }
+  const dialog = previewDialog;
+  const close = el("button", { type: "button" }, "Cerrar");
+  const get = el("button", { type: "button", class: "primary" }, icon("download"), "Descargar");
+  close.addEventListener("click", () => dialog.close());
+  get.addEventListener("click", () => { dialog.close(); download(row); });
+  dialog.setAttribute("aria-label", file.name);
+  dialog.replaceChildren(
+    el("img", { src: file.thumb, alt: `Vista previa de ${file.name}` }),
+    el("div", { class: "preview-foot" },
+      el("div", {}, el("div", { class: "name" }, file.name),
+        el("div", { class: "info" }, `${KINDS[file.kind] || "Archivo"} · ${formatSize(file.size)}`)),
+      el("div", { class: "preview-actions" }, close, get)));
+  dialog.showModal();
+  get.focus();
 }
 
 function showFiles(data) {
@@ -185,11 +214,11 @@ function fileRow(file) {
   const status = el("p", { class: "status", role: "status" });
   const button = el("button", { class: "primary", type: "button", "aria-label": `Descargar ${file.name}` },
     icon("download"), el("span", { class: "label" }, "Descargar"));
-  const node = el("li", { class: "file" }, thumbFor(file),
+  const row = { file, button, status };
+  row.node = el("li", { class: "file" }, thumbFor(row),
     el("div", {}, el("div", { class: "name" }, file.name),
       el("div", { class: "info" }, `${KINDS[file.kind] || "Archivo"} · ${formatSize(file.size)}`), status),
     button);
-  const row = { file, button, status, node };
   button.addEventListener("click", () => download(row));
   return row;
 }
