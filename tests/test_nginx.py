@@ -26,6 +26,17 @@ ENV_EXAMPLE = Path(__file__).parent.parent / ".env.example"
 IMAGE = next(line.split("=", 1)[1] for line in ENV_EXAMPLE.read_text().splitlines()
              if line.startswith("NGINX_IMAGE="))
 DOCKER_NETS = ["172.16.0.0/12", "10.0.0.0/8"]
+CONTAINERS: dict[str, str] = {}
+
+
+def nginx_logs(base: str, until: str) -> str:
+    """Los logs llegan a Docker con algo de retraso: se espera a ver `until`."""
+    for _ in range(50):
+        r = subprocess.run(["docker", "logs", CONTAINERS[base]], capture_output=True, text=True)
+        if until in r.stdout + r.stderr:
+            break
+        time.sleep(0.1)
+    return r.stdout + r.stderr
 
 
 def docker_ok() -> bool:
@@ -68,6 +79,7 @@ def stack(env: Env, panel: TestClient, request: pytest.FixtureRequest) -> Iterat
          "-e", "MEDIA_DIR=/media", "-e", "DOWNLOAD_RATE=256k", "-e", "DOWNLOAD_CONN_PER_IP=1",
          "-e", "API_RATE=600r/m", IMAGE], check=True, capture_output=True)
     base = f"http://127.0.0.1:{nginx_port}"
+    CONTAINERS[base] = name
     try:
         for _ in range(100):
             try:
@@ -103,6 +115,11 @@ def test_download_through_nginx(stack: tuple[Env, TestClient, str]) -> None:
     assert part.status_code == 206 and part.content == data[1000:2000]
     assert [r[0] for r in sql(env, "SELECT ip FROM tickets", db="public")] == ["203.0.113.5"]
     assert sql(env, "SELECT COUNT(*) FROM downloads", db="public")[0][0] == 2
+    assert client.get(url[:-4] + "AAAA").status_code in (403, 404)
+    ticket = url.rsplit("/", 1)[1]
+    logs = nginx_logs(base, until='"uri":"/download/<ticket>"')
+    assert ticket not in logs and ticket[:-4] not in logs
+    assert '"uri":"/download/<ticket>"' in logs and logs.count('"uri":"/_protected/send/viaje/') == 2
     assert client.get("/_protected/viaje/" + quote("clip grande ñ.mp4")).status_code == 404
     assert client.get("/_protected/../roots.toml").status_code in (400, 404)
 
@@ -135,6 +152,9 @@ def test_connection_limit_is_per_client_ip(stack: tuple[Env, TestClient, str]) -
     done.set()
     assert same_ip.status_code == 429
     assert other_ip.status_code == 206
+    ticket = url.rsplit("/", 1)[1]
+    logs = nginx_logs(base, until='"status":429')
+    assert '"status":429' in logs and ticket not in logs
 
 
 @pytest.mark.parametrize("stack", ["192.0.2.1"], indirect=True)

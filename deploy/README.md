@@ -165,7 +165,16 @@ Uptime Kuma, directo al backend:
 
 Todos los procesos escriben JSON a stdout. Las acciones que cambian estado van con
 `action`, `result`, `ip` y, cuando hay un token de por medio, solo su hash truncado.
-nginx escribe su access log en JSON. Recoger los logs de los contenedores (driver
+nginx escribe su access log en JSON. El ticket de descarga va en la ruta (`/download/<ticket>`) y basta
+para descargar ese fichero durante horas, así que no se registra: nginx lo sustituye
+por `<ticket>` (y en `/download/` solo escribe errores críticos, porque el error log
+lleva la línea de petición), y el proceso público no tiene access log propio.
+
+**Riesgo aceptado:** el access log de Traefik sí lo ve. No se recorta porque CrowdSec
+necesita la ruta. Aguanta porque el ticket no da más que el enlace del que sale, cada
+petición vuelve a comprobar que el enlace y la concesión siguen vivos (revocar lo
+mata) y esos logs solo los lee administración. El ticket no se liga a la IP a
+propósito: rompería reanudar en el móvil al pasar de wifi a datos. Recoger los logs de los contenedores (driver
 `journald` o los ficheros de Docker).
 
 ### Copias de seguridad
