@@ -15,7 +15,8 @@ from media_management.settings import SENTINEL_NAME, Settings
 TRAEFIK = "192.0.2.10"
 NGINX = "192.0.2.20"
 USER = "andres-test"
-SECRET = "k" * 48
+TICKET_KEY = "t" * 48
+CSRF_KEY = "c" * 48
 
 ROOTS_TOML = """
 [[roots]]
@@ -77,7 +78,7 @@ def make_settings(tmp_path: Path, **overrides: object) -> Settings:
     (tmp_path / "manifiesto").mkdir(exist_ok=True)
     values: dict[str, object] = {
         "roots_file": roots_file, "media_base": base, "data_dir": tmp_path / "data",
-        "secret_key": SECRET, "jellyfin_url": "",
+        "ticket_key": TICKET_KEY, "csrf_key": CSRF_KEY, "jellyfin_url": "",
         "jellyfin_ids_file": tmp_path / "jellyfin-ids.json",
         "manifest_path": tmp_path / "manifiesto" / "buceo.candidate.json",
         "trusted_proxies": [f"{TRAEFIK}/32"], "trusted_nginx": [f"{NGINX}/32"],

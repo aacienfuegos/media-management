@@ -2,7 +2,6 @@ from functools import lru_cache
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 from pathlib import Path
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DISPLAY_TZ = "Europe/Madrid"
@@ -16,7 +15,10 @@ class Settings(BaseSettings):
     media_base: Path
     data_dir: Path
 
-    secret_key: str = Field(min_length=32)
+    # Una clave por proceso y cada uno recibe solo la suya: el público firma tickets,
+    # el panel firma tokens CSRF. Comprometer el público no da nada contra el panel.
+    ticket_key: str = ""
+    csrf_key: str = ""
 
     jellyfin_url: str = ""
     jellyfin_ids_file: Path | None = None
@@ -68,6 +70,12 @@ class Settings(BaseSettings):
     @property
     def sentinel(self) -> Path:
         return self.media_base / SENTINEL_NAME
+
+
+def require_key(value: str, name: str) -> str:
+    if len(value) < 32:
+        raise ValueError(f"{name} tiene que tener al menos 32 caracteres aleatorios")
+    return value
 
 
 def networks(cidrs: list[str]) -> list[IPv4Network | IPv6Network]:
