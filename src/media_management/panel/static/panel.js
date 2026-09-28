@@ -3,15 +3,33 @@
 document.documentElement.classList.add("js");
 
 const boxes = () => Array.from(document.querySelectorAll("input[type=checkbox][name=file_id]"));
+const SELECTION_KEY = "mm-selection";
 
-function updateSelection() {
+function loadSelection() {
+  try {
+    return new Set(JSON.parse(sessionStorage.getItem(SELECTION_KEY) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSelection(selection) {
+  try {
+    if (selection.size) sessionStorage.setItem(SELECTION_KEY, JSON.stringify([...selection]));
+    else sessionStorage.removeItem(SELECTION_KEY);
+  } catch {}
+}
+
+function updateSelection(selection) {
   const counter = document.getElementById("selected-count");
   if (!counter) return;
   const all = boxes();
   const checked = all.filter((b) => b.checked);
-  counter.textContent = String(checked.length);
-  document.getElementById("selected-label").textContent = checked.length === 1 ? "seleccionado" : "seleccionados";
-  document.querySelector(".selbar").toggleAttribute("data-empty", checked.length === 0);
+  const elsewhere = selection.size - checked.length;
+  counter.textContent = String(selection.size);
+  document.getElementById("selected-label").textContent =
+    (selection.size === 1 ? "seleccionado" : "seleccionados") + (elsewhere > 0 ? ` (${elsewhere} en otras páginas)` : "");
+  document.querySelector(".selbar").toggleAttribute("data-empty", selection.size === 0);
   for (const box of all) box.closest("tr").classList.toggle("selected", box.checked);
   for (const master of document.querySelectorAll("input[data-select-all]")) {
     master.checked = checked.length > 0 && checked.length === all.length;
@@ -20,12 +38,24 @@ function updateSelection() {
 }
 
 function setupSelection() {
-  let last = null;
+  const form = document.querySelector("form[data-selection]");
+  if (!form) return;
+  const selection = loadSelection();
   const all = boxes();
+  let last = null;
+  const sync = () => {
+    for (const box of all) {
+      if (box.checked) selection.add(box.value);
+      else selection.delete(box.value);
+    }
+    saveSelection(selection);
+    updateSelection(selection);
+  };
+  for (const box of all) box.checked = selection.has(box.value);
   for (const master of document.querySelectorAll("input[data-select-all]")) {
     master.addEventListener("change", () => {
       for (const box of all) box.checked = master.checked;
-      updateSelection();
+      sync();
     });
   }
   for (const box of all) {
@@ -35,7 +65,7 @@ function setupSelection() {
         for (const other of all.slice(a, b + 1)) other.checked = box.checked;
       }
       last = box;
-      updateSelection();
+      sync();
     });
     const row = box.closest("tr");
     row.addEventListener("click", (event) => {
@@ -46,10 +76,22 @@ function setupSelection() {
   for (const clear of document.querySelectorAll("[data-clear-selection]")) {
     clear.addEventListener("click", () => {
       for (const box of all) box.checked = false;
-      updateSelection();
+      selection.clear();
+      sync();
     });
   }
-  updateSelection();
+  form.addEventListener("submit", () => {
+    const onPage = new Set(all.map((b) => b.value));
+    for (const id of selection) {
+      if (onPage.has(id)) continue;
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "file_id";
+      hidden.value = id;
+      form.appendChild(hidden);
+    }
+  });
+  updateSelection(selection);
 }
 
 function makeSortable(table) {
@@ -143,7 +185,7 @@ function setupShortcuts() {
     const typing = e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]");
     if (e.key === "Escape") {
       if (typing && e.target.matches("[data-search]")) e.target.blur();
-      else if (document.querySelector("[data-clear-selection]")) document.querySelector("[data-clear-selection]").click();
+      else document.querySelector("[data-clear-selection]")?.click();
       return;
     }
     if (typing) return;
@@ -170,6 +212,7 @@ function setupShortcuts() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (document.querySelector("[data-link-created]")) saveSelection(new Set());
   setupSelection();
   for (const table of document.querySelectorAll("table[data-sortable]")) makeSortable(table);
 
