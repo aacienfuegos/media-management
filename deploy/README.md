@@ -175,6 +175,18 @@ sqlite3 DATA_DIR/main/main.db ".backup /destino/main.db"
 sqlite3 DATA_DIR/public/public.db ".backup /destino/public.db"
 ```
 
+## Actualizar
+
+Las dos imágenes (`IMAGE` y `NGINX_IMAGE`) van por digest y el compose no arranca sin
+ellas: un tag olvidado no puede convertirse en un despliegue que nadie ha decidido.
+Se suben a mano:
+- la app, con el digest que publica la Action al fusionar en `main`;
+- nginx, cuando haya una versión de parche o un aviso de seguridad de la rama estable:
+  `docker pull` del tag, `docker image inspect --format '{{index .RepoDigests 0}}'` y ese
+  valor en `NGINX_IMAGE`.
+
+Luego `docker compose pull && docker compose up -d`.
+
 ## Traspaso del manifiesto
 
 TripPlanner prod lee `buceo.json`. Hoy lo escribe el generador del host; la app lo

@@ -40,7 +40,7 @@ def test_panel_refuses_to_start_without_csrf_key(tmp_path: Path) -> None:
 
 def compose_config(tmp_path: Path, *files: str, extra: str = "") -> dict[str, Any]:
     env = tmp_path / ".env"
-    env.write_text(extra + "APP_UID=1000\nAPP_GID=1000\nMEDIA_DIR=/m\nDATA_DIR=/d\nROOTS_FILE=/r.toml\n"
+    env.write_text(extra + "IMAGE=app@sha256:0\nNGINX_IMAGE=nginx@sha256:0\nAPP_UID=1000\nAPP_GID=1000\nMEDIA_DIR=/m\nDATA_DIR=/d\nROOTS_FILE=/r.toml\n"
                    "MANIFEST_DIR=/man\nIDS_EXPORT_DIR=/ids\nTRAEFIK_IP=192.0.2.1\n"
                    "MM_TICKET_KEY=ticket-secreta\nMM_CSRF_KEY=csrf-secreta\nMM_NTFY_TOKEN=ntfy-secreto\n")
     args = [a for f in files for a in ("-f", str(REPO / f))]
