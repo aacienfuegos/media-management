@@ -94,7 +94,7 @@ services:
       TRAEFIK_IP: ${TRAEFIK_IP:?}
       PUBLIC_UPSTREAM: public:8001
       MEDIA_DIR: /media
-      DOWNLOAD_RATE: ${DOWNLOAD_RATE:-8m}
+      DOWNLOAD_RATE: ${DOWNLOAD_RATE:-12m}
       DOWNLOAD_CONN_PER_IP: ${DOWNLOAD_CONN_PER_IP:-4}
       API_RATE: ${API_RATE:-30r/m}
     volumes:

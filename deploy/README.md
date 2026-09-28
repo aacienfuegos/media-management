@@ -83,6 +83,16 @@ Además:
 - `MANIFEST_DIR`, con escritura para `APP_GID`. Los ficheros se escriben
   con `0644`.
 
+### Ancho de banda
+
+nginx limita cada descarga (`DOWNLOAD_RATE`, 12 MB/s por defecto) y el número de
+descargas simultáneas por IP (`DOWNLOAD_CONN_PER_IP`), pero no tiene un tope global
+razonable: varios clientes a la vez suman. **El tope global es requisito del alta** y
+va en el límite de velocidad de la interfaz del LXC: la mitad o algo más de la subida
+medida, para que el resto de la casa y el resto de servicios publicados sigan
+funcionando. `DOWNLOAD_RATE` se elige para que dos descargas a la vez quepan bajo ese
+tope.
+
 ### Traefik
 
 Tres routers (ver `traefik/media.example.yml`):

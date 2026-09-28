@@ -4,7 +4,7 @@
 #   TRAEFIK_IP             IP desde la que llega Traefik (la única de la que se cree X-Forwarded-For)
 #   PUBLIC_UPSTREAM        proceso público, p. ej. public:8001
 #   MEDIA_DIR              raíz de media dentro del contenedor de nginx (solo lectura)
-#   DOWNLOAD_RATE          límite de velocidad por conexión de descarga, p. ej. 8m
+#   DOWNLOAD_RATE          límite de velocidad por conexión de descarga, p. ej. 12m
 #   DOWNLOAD_CONN_PER_IP   descargas simultáneas por IP
 #   API_RATE               peticiones por minuto a /api/ por IP, p. ej. 30r/m
 
