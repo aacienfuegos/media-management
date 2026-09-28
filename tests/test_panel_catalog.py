@@ -115,3 +115,21 @@ def test_delete_is_blocked_where_second_copy_is_required(env: Env, panel: TestCl
     loose_id = file_id(env, "send", "suelto.txt")
     loose = panel.get(f"/files/{loose_id}").text
     assert f'href="/files/{loose_id}/trash"' in loose and "no consta una segunda copia" not in loose
+
+
+def test_library_sort_spans_every_page(env: Env, panel: TestClient,
+                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("media_management.panel.catalog_routes.PAGE", 2)
+    for i, n in enumerate(("a.txt", "b.txt", "c.txt", "d.txt")):
+        (env.root("send") / n).write_text("x" * (i + 1))
+    cycle(env.settings)
+    first = panel.get("/library", params={"root": "send", "sort": "size", "order": "desc"}).text
+    assert "d.txt" in first and "c.txt" in first and "a.txt" not in first
+    assert 'class="sortable sorted-desc"' in first
+    assert "sort=size&order=asc" in first
+    second = panel.get("/library", params={"root": "send", "sort": "size", "order": "desc", "page": 2}).text
+    assert "a.txt" in second and "d.txt" not in second
+    default = panel.get("/library", params={"root": "send"}).text
+    assert '<a class="sortable sorted-desc" href="?root=send&amp;dir=&amp;q=&amp;kind=&sort=date&order=asc">Captura' in default
+    for key in ("root", "duration", "resolution"):
+        assert panel.get("/library", params={"sort": key}).status_code == 200

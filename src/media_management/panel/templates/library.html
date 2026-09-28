@@ -3,6 +3,10 @@
 {% block content %}
 <h1>Biblioteca</h1>
 {% set filters = "&q=" ~ (q|urlencode) ~ "&kind=" ~ kind ~ "&sort=" ~ sort ~ "&order=" ~ order %}
+{% set here = "?root=" ~ ((root.name if root else "")|urlencode) ~ "&dir=" ~ (current|urlencode) ~ "&q=" ~ (q|urlencode) ~ "&kind=" ~ kind %}
+{% macro sorth(key, label, cls="") -%}
+<th class="{{ cls }}"><a class="sortable{% if sort == key %} sorted-{{ order }}{% endif %}" href="{{ here }}&sort={{ key }}&order={{ 'desc' if sort == key and order == 'asc' else 'asc' }}">{{ label }}</a></th>
+{%- endmacro %}
 <nav class="segmented" aria-label="Raíz">
   <a href="/library?{{ filters[1:] }}"{% if not root %} aria-current="page"{% endif %}>Todas</a>
   {% for name in roots %}<a href="/library?root={{ name|urlencode }}{{ filters }}"{% if root and root.name == name %} aria-current="page"{% endif %}>{{ name }}</a>{% endfor %}
@@ -24,16 +28,8 @@
     <option value="photo" {% if kind == "photo" %}selected{% endif %}>Foto</option>
     <option value="other" {% if kind == "other" %}selected{% endif %}>Otros</option>
   </select>
-  <select name="sort">
-    <option value="name" {% if sort == "name" %}selected{% endif %}>Nombre</option>
-    <option value="date" {% if sort == "date" %}selected{% endif %}>Fecha de captura</option>
-    <option value="size" {% if sort == "size" %}selected{% endif %}>Tamaño</option>
-    <option value="kind" {% if sort == "kind" %}selected{% endif %}>Tipo</option>
-  </select>
-  <select name="order">
-    <option value="asc" {% if order == "asc" %}selected{% endif %}>Ascendente</option>
-    <option value="desc" {% if order == "desc" %}selected{% endif %}>Descendente</option>
-  </select>
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="order" value="{{ order }}">
   <button>Aplicar</button>
 </form>
 
@@ -42,18 +38,18 @@
 {% endif %}
 
 <form method="get" action="/links/new">
-<table id="files" data-sortable>
+<table id="files">
   <thead><tr>
     {% if shareable %}<th><input type="checkbox" data-select-all="files" aria-label="Seleccionar todos"></th>{% endif %}
     <th></th>
-    <th data-sort="text">{{ "Nombre" if root else "Ruta" }}</th>
-    {% if not root %}<th data-sort="text">Raíz</th>{% endif %}
-    <th data-sort="text">Tipo</th>
-    <th data-sort="num" class="num">Tamaño</th>
-    <th data-sort="text">Captura (Madrid)</th>
-    <th data-sort="num" class="num">Duración</th>
-    <th data-sort="text">Resolución</th>
-    {% if jellyfin %}<th data-sort="text">Jellyfin</th>{% endif %}
+    {{ sorth("name", "Nombre" if root else "Ruta") }}
+    {% if not root %}{{ sorth("root", "Raíz") }}{% endif %}
+    {{ sorth("kind", "Tipo") }}
+    {{ sorth("size", "Tamaño", "num") }}
+    {{ sorth("date", "Captura (Madrid)") }}
+    {{ sorth("duration", "Duración", "num") }}
+    {{ sorth("resolution", "Resolución") }}
+    {% if jellyfin %}<th>Jellyfin</th>{% endif %}
   </tr></thead>
   <tbody>
   {% for f in files %}
