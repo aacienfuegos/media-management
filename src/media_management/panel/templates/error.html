@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ "No encontrado" if code == 404 else "Error" }}{% endblock %}
+{% block content %}
+<section class="panel empty error-page">
+  <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1 5h2v6h-2V7Zm0 8h2v2h-2v-2Z"/></svg>
+  {% if code == 404 %}
+  <h1>Esta página no existe</h1>
+  <p>Puede que el enlace, el fichero o la solicitud se hayan borrado, o que la dirección esté mal escrita.</p>
+  {% else %}
+  <h1>Algo ha fallado</h1>
+  <p>El error ha quedado en el log del panel. Vuelve a intentarlo en un momento.</p>
+  {% endif %}
+  <p><a class="btn primary" href="/library">Ir a la Biblioteca</a> <a class="btn ghost" href="/">Inicio</a></p>
+</section>
+{% endblock %}

@@ -17,7 +17,7 @@
   <div class="panel">
     <div class="field">
       <label for="title">Título</label>
-      <input id="title" name="title" maxlength="120" value="{{ title }}" placeholder="{% if files|length == 1 %}{{ files[0].name }}{% else %}{{ files|length }} ficheros{% endif %}" class="wide">
+      <input id="title" name="title" maxlength="120" value="{{ title }}" placeholder="Ej.: {% if files|length == 1 %}{{ files[0].name }}{% else %}{{ files|length }} ficheros{% endif %}" class="wide">
       <p class="hint">Lo verá quien abra el enlace. Si lo dejas vacío se usa el texto de ejemplo.</p>
     </div>
 
@@ -46,10 +46,10 @@
       <div class="inline-fields">
         <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="{{ default_days }}" required aria-describedby="days-hint"> <span>días</span>
         <span class="presets js-only" aria-label="Atajos de caducidad">
-          <button type="button" class="sm ghost" data-days="1">1 día</button>
-          <button type="button" class="sm ghost" data-days="7">1 semana</button>
-          <button type="button" class="sm ghost" data-days="30">1 mes</button>
-          <button type="button" class="sm ghost" data-days="{{ max_days }}">Máximo</button>
+          <button type="button" data-days="1">1 día</button>
+          <button type="button" data-days="7">1 semana</button>
+          <button type="button" data-days="30">1 mes</button>
+          <button type="button" data-days="{{ max_days }}">Máximo</button>
         </span>
       </div>
       <p class="hint" id="days-hint">Obligatorio, máximo {{ max_days }}. Se puede renovar después.</p>

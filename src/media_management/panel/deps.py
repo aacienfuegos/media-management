@@ -32,7 +32,8 @@ def _size(n: int | None) -> str:
     size = float(n)
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if size < 1024 or unit == "TB":
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+            number = f"{size:.0f}" if unit == "B" else f"{size:.1f}".replace(".", ",")
+            return f"{number}\u00a0{unit}"
         size /= 1024
     return str(n)
 
