@@ -87,7 +87,8 @@ def test_panel_requires_traefik_origin(env: Env) -> None:
         assert direct.get("/", headers={"X-authentik-username": USER}).status_code == 403
     with TestClient(app, client=(TRAEFIK, 1)) as via_traefik:
         assert via_traefik.get("/").status_code == 403
-        assert via_traefik.get("/", headers={"X-authentik-username": "otra"}).status_code == 403
+        denied = via_traefik.get("/", headers={"X-authentik-username": "otra"})
+        assert denied.status_code == 403 and "«otra»" in denied.json()["detail"]
         assert via_traefik.get("/", headers={"X-authentik-username": USER}).status_code == 200
 
 

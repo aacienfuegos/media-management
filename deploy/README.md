@@ -21,20 +21,32 @@ Los tres puertos publicados **solo** desde Traefik, más Uptime Kuma para los `h
 conexión viene de una IP de `MM_TRUSTED_PROXIES`: que Kuma llegue al puerto no le da
 acceso a nada más que a `/healthz`.
 
-> Comprueba que Docker conserva la IP de origen en los puertos publicados (con el
-> proxy de espacio de usuario, la IP que ve el contenedor es la de la pasarela de
-> Docker). Tras el alta: una petición al panel desde fuera de Traefik tiene que dar
-> 403, y el registro del panel tiene que mostrar la IP real del cliente.
+Son dos controles distintos y cada uno tiene su prueba en "Comprobaciones tras el
+alta": el cortafuegos (`DOCKER-USER`) decide quién llega al puerto, y la app decide de
+quién se fía.
 
 ## Lista para el alta
 
 ### LXC
 
 - LXC **sin privilegios** con Docker (`nesting=1`, `keyctl=1`).
+- `/etc/docker/daemon.json` en el LXC:
+
+  ```json
+  {"userland-proxy": false,
+   "log-driver": "json-file", "log-opts": {"max-size": "20m", "max-file": "5"}}
+  ```
+
+  - Sin `userland-proxy: false`, el contenedor ve como origen la pasarela de Docker y
+    no la IP real: el panel rechaza a Traefik y los registros mienten.
+  - Sin rotación, el JSON a stdout de cinco contenedores acaba llenando el disco.
 - Bind mounts:
   - Directorio de media del host → en el LXC, **lectura-escritura** y **`optional`**.
     Si el disco cifrado no está desbloqueado, el LXC arranca igual y la app se niega a
-    operar (ver centinela).
+    operar (ver centinela). En Proxmox, `mpX` no admite `optional`: va como
+    `lxc.mount.entry: /ruta/a/media ruta/en/lxc none bind,optional,create=dir` en
+    `/etc/pve/lxc/<ctid>.conf`. Si el disco se monta **después** de arrancar el LXC, el
+    LXC no lo ve hasta reiniciarlo (el centinela lo detecta y `healthz` lo dice).
   - Durante el traspaso del manifiesto, dos:
     - un directorio **propio** para el candidato → **lectura-escritura** (`MANIFEST_DIR`);
     - el directorio que lee TripPlanner → **solo lectura** (`MANIFEST_CURRENT_DIR`).
@@ -62,18 +74,28 @@ manifiesto, no sirve descargas y no mueve nada. `healthz` lo dice.
 
 ### Permisos (UID/GID)
 
-La app necesita poder **renombrar** dentro de las raíces borrables o renombrables
-(`rename` necesita escritura en el directorio, no en el fichero) y crear carpetas en
-la papelera. No necesita escribir en los ficheros.
+La app necesita **renombrar** (mover a la papelera también es un `rename`) solo en las
+raíces que la versión actual puede tocar, y crear carpetas en la papelera. `rename`
+necesita escritura en el directorio, no en el fichero: nunca escribe en los ficheros.
 
-Recomendado: el proceso con un UID propio (`APP_UID`) y como grupo el de los ficheros
-de la biblioteca (`APP_GID`, el GID del usuario de Jellyfin tal como se ve en el LXC).
-Luego, en el host:
+- **`APP_UID`: propio y único en todo el nodo.** Todos los LXC sin privilegios
+  comparten el mismo mapeo de UIDs al host, así que el mismo UID en otro LXC es el
+  mismo dueño en disco. No usar el `10001` de la imagen.
+- **`APP_GID`**: el grupo de los ficheros de la biblioteca tal como se ve en el LXC.
+
+Escritura (grupo + `2775`) **solo** en las raíces en las que se puede borrar o
+renombrar algo hoy y en `.trash`. Las raíces con `synced` o `requires_second_copy` no
+se tocan: en ellas no se renombra, y no se borra nada hasta que exista el inventario de
+la segunda copia (`panel/policy.py`). Mínimo privilegio; el día que haga falta se abre
+con su motivo. En el host, con el GID tal como se ve fuera del LXC:
 
 ```sh
-chmod 2775 /ruta/a/media/buceo /ruta/a/media/originales-120fps /ruta/a/media/send
+chgrp <gid-host> /ruta/a/media/send && chmod 2775 /ruta/a/media/send
 mkdir -p /ruta/a/media/.trash && chgrp <gid-host> /ruta/a/media/.trash && chmod 2775 /ruta/a/media/.trash
 ```
+
+`chmod` sin `chgrp` no vale: si la raíz es de otro grupo, da escritura a quien no toca
+y no a la app.
 
 Además:
 - nginx (`nginx-unprivileged`, sin root, sistema de ficheros de solo lectura) lee los
@@ -93,6 +115,45 @@ medida, para que el resto de la casa y el resto de servicios publicados sigan
 funcionando. `DOWNLOAD_RATE` se elige para que dos descargas a la vez quepan bajo ese
 tope.
 
+### Cortafuegos (`DOCKER-USER`)
+
+Los puertos publicados por Docker pasan por `FORWARD` después del DNAT: una regla en
+`INPUT` no los ve, y el control sale en verde sin filtrar nada. Van en `DOCKER-USER`,
+casando por el puerto **original** (`--ctorigdstport`; `--dport` ya es el del
+contenedor). Dos cosas:
+
+1. Los puertos `8002`, `8003` y `8080`, solo desde Traefik y el monitor.
+2. La red `share` (proceso público y nginx, lo único expuesto a internet) solo puede
+   **iniciar** conexiones hacia ntfy, que es lo único a lo que sale el proceso público
+   (las miniaturas las copia el panel al crear el enlace). Sin esta regla, un proceso
+   público comprometido llega al endpoint de streaming de Jellyfin, que no pide
+   autenticación, y al resto de la red.
+
+Ejemplo con IPs de documentación (Traefik `192.0.2.10`, monitor `192.0.2.11`, ntfy
+`192.0.2.12:8080`, `SHARE_SUBNET` por defecto):
+
+```sh
+#!/bin/sh
+set -eu
+iptables -F DOCKER-USER
+iptables -A DOCKER-USER -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+# Dentro de la propia red share (nginx → público).
+iptables -A DOCKER-USER -s 172.31.250.0/24 -d 172.31.250.0/24 -j RETURN
+iptables -A DOCKER-USER -s 172.31.250.0/24 -d 192.0.2.12 -p tcp --dport 8080 -j RETURN
+iptables -A DOCKER-USER -s 172.31.250.0/24 -j DROP
+for port in 8002 8003 8080; do
+  for src in 192.0.2.10 192.0.2.11; do
+    iptables -A DOCKER-USER -p tcp -s "$src" -m conntrack --ctorigdstport "$port" -j RETURN
+  done
+  iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP
+done
+iptables -A DOCKER-USER -j RETURN
+```
+
+Tiene que sobrevivir a reinicios de Docker, que puede vaciar `DOCKER-USER`: como unidad
+`oneshot` con `After=docker.service`, `PartOf=docker.service` y
+`WantedBy=docker.service`.
+
 ### Traefik
 
 Tres routers (ver `traefik/media.example.yml`):
@@ -106,6 +167,8 @@ Tres routers (ver `traefik/media.example.yml`):
 
 Una aplicación/proveedor de forward-auth para el host del panel. La app además
 comprueba el usuario contra `MM_PANEL_ALLOWED_USERS`: con la lista vacía no entra nadie.
+Lo que se compara es el **`username` de Authentik** (la cabecera
+`X-authentik-username`), no el nombre visible ni el correo.
 
 ### Jellyfin
 
@@ -254,11 +317,29 @@ demuestre lo contrario.
 
 ## Comprobaciones tras el alta
 
-- El token de un enlace **no** aparece en ningún log (Traefik, nginx, contenedores):
-  `grep -r <token>` tiene que dar vacío tras abrir el enlace y descargar.
-- La IP que registra el panel en una descarga es la del cliente, no la de Traefik ni
-  la de nginx.
-- Desde fuera de Traefik, `curl -H 'X-authentik-username: <usuario>' http://<lxc>:8002/`
-  da 403; contra la API da 401.
+Cada comprobación negativa va con su pareja positiva: un "no aparece" o un "no
+responde" solo vale si en el mismo sitio sí aparece o sí responde lo legítimo. Si no,
+la forma más barata de aprobar es mirar el fichero equivocado o romper el servicio.
+
+- **Logs sin secretos.** Tras abrir un enlace, descargar un fichero entero y reanudar
+  otro, en los logs de nginx y de los contenedores (`docker compose logs`):
+  - `grep <token>` y `grep <ticket>` dan vacío (el ticket es el último segmento de la
+    URL `/download/...` que pide el navegador);
+  - `grep /download/` y `grep /_protected/` **sí** encuentran esas descargas.
+
+  En el access log de Traefik el ticket sí aparece (riesgo aceptado, ver "Registros").
+- **IP real.** La IP que registra el panel en una descarga es la del cliente, no la de
+  Traefik, la de nginx ni la pasarela de Docker.
+- **Control de la app**, desde el propio LXC y por su IP (no `localhost`, que no pasa
+  por la misma ruta):
+  - `curl -H 'X-authentik-username: <usuario>' http://<ip-lxc>:8002/` → `403`;
+  - lo mismo contra `:8003/api/v1/roots` → `401`.
+- **Cortafuegos**, desde otra máquina de la red que no sea Traefik ni el monitor: los
+  puertos `8002`, `8003` y `8080` no responden.
+- **La pareja legítima de las dos anteriores:** el panel por su nombre, a través de
+  Traefik y Authentik, funciona; los tres `healthz` del monitor siguen en verde; y un
+  enlace abierto desde fuera de la LAN descarga.
+- **Salida de `share` cerrada**: desde el contenedor `public`, una conexión al `8096`
+  de Jellyfin falla; una solicitud de acceso sí llega a ntfy.
 - Abrir el enlace en WhatsApp o Telegram (previsualización) no genera ningún ticket en
   la ficha del enlace.
