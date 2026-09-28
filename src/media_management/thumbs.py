@@ -53,7 +53,7 @@ async def get_thumb(cache_dir: Path, jellyfin: Jellyfin, item_id: str) -> bytes 
     try:
         data = await jellyfin.primary_image(item_id)
     except JellyfinError as e:
-        log.warning("miniatura no disponible", extra={"fields": {"item_id": item_id, "error": str(e)}})
+        log.warning("miniatura no disponible", extra={"fields": {"item_ref": item_id[:8], "error": str(e)}})
         return None
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
