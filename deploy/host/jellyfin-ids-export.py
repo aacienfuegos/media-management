@@ -15,6 +15,7 @@ Configuración por entorno (ver jellyfin-ids-export.env.example).
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -23,6 +24,7 @@ DB = os.environ.get("MM_EXPORT_DB", "/var/lib/jellyfin/data/jellyfin.db")
 PREFIXES = [p.rstrip("/") + "/" for p in os.environ["MM_EXPORT_LIBRARY_DIRS"].split(",") if p.strip()]
 OUT = os.environ["MM_EXPORT_OUT"]
 PCT = os.environ.get("MM_EXPORT_PCT", "pct").split()
+ITEM_ID = re.compile(r"^[0-9a-f]{32}$")
 QUERY = "SELECT Id || '|' || Path FROM BaseItems WHERE Path IS NOT NULL;"
 
 
@@ -47,6 +49,12 @@ def read_ids() -> dict[str, str] | None:
         ident, path = line.split("|", 1)
         if any(path.startswith(p) for p in PREFIXES):
             items[path] = ident.replace("-", "").lower()
+    # La app es la frontera y descarta el export entero; esto evita escribirlo.
+    bad = [p for p, i in items.items()
+           if not ITEM_ID.match(i) or ".." in p.split("/") or any(ord(c) < 32 or ord(c) == 127 for c in p)]
+    if bad:
+        log(f"{len(bad)} filas de la biblioteca con ID o ruta inválidos: no escribo el export")
+        return None
     return items
 
 

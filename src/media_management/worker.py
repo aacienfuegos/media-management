@@ -9,7 +9,7 @@ import aiosqlite
 
 from media_management.catalog import RootScan, scan_root
 from media_management.db import get_state, init_main, now_iso, open_persistent, set_state
-from media_management.jellyfin import Jellyfin, id_mismatches, load_ids_export
+from media_management.jellyfin import Jellyfin, id_mismatches, library_prefixes, load_ids_export
 from media_management.logs import audit
 from media_management.manifest import build_manifest, compare, serialize, write_atomic
 from media_management.roots import Root, load_roots, media_problem
@@ -106,7 +106,8 @@ async def run_cycle(conn: aiosqlite.Connection, settings: Settings, roots: dict[
         log.error("media no disponible: no se escanea", extra={"fields": {"problem": problem}})
         return
     await conn.execute("DELETE FROM state WHERE key = 'media_problem'")
-    export = load_ids_export(settings.jellyfin_ids_file, settings.jellyfin_ids_max_age_s)
+    export = load_ids_export(settings.jellyfin_ids_file, settings.jellyfin_ids_max_age_s,
+                             library_prefixes(roots))
     started = now_iso()
     scans: dict[str, RootScan] = {}
     for root in roots.values():
