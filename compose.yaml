@@ -30,7 +30,6 @@ services:
     environment:
       <<: *app-env
       MM_MANIFEST_PATH: /manifest/${MANIFEST_FILE:-buceo.candidate.json}
-      MM_MANIFEST_COMPARE_WITH: ${MM_MANIFEST_COMPARE_WITH:-}
     volumes:
       - ${ROOTS_FILE:?}:/config/roots.toml:ro
       - ${MEDIA_DIR:?}:/media:ro

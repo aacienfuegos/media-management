@@ -167,7 +167,8 @@ def test_scan_tracks_changes_and_skips_symlinks_and_hidden(env: Env, panel: Test
 
 @needs_ffmpeg
 def test_comparator_against_current_manifest(env: Env, tmp_path: Path) -> None:
-    current = tmp_path / "manifiesto" / "buceo.json"
+    current = tmp_path / "actual" / "buceo.json"
+    current.parent.mkdir()
     settings = env.settings.model_copy(update={"manifest_compare_with": current})
     ids = library(env)
     env.write_ids(ids)
@@ -188,6 +189,20 @@ def test_comparator_against_current_manifest(env: Env, tmp_path: Path) -> None:
     result = json.loads(state(settings, "manifest_comparison") or "{}")
     problems = sorted(d["problem"] for d in result["differences"])
     assert problems == ["size_bytes distinto", "solo en el candidato"]
+
+
+@needs_ffmpeg
+def test_candidate_is_not_written_next_to_the_current_manifest(env: Env, panel: TestClient,
+                                                                tmp_path: Path) -> None:
+    assert env.settings.manifest_path is not None
+    current = env.settings.manifest_path.with_name("buceo.json")
+    current.write_text("{}")
+    settings = env.settings.model_copy(update={"manifest_compare_with": current})
+    env.write_ids(library(env))
+    cycle(settings)
+    assert not env.settings.manifest_path.exists() and current.read_text() == "{}"
+    status = json.loads(state(settings, "manifest_status") or "{}")
+    assert status["written"] is False and "mismo directorio" in status["problem"]
 
 
 def test_compare_by_identity() -> None:

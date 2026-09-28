@@ -35,8 +35,10 @@ acceso a nada más que a `/healthz`.
   - Directorio de media del host → en el LXC, **lectura-escritura** y **`optional`**.
     Si el disco cifrado no está desbloqueado, el LXC arranca igual y la app se niega a
     operar (ver centinela).
-  - Directorio del manifiesto que lee TripPlanner → **lectura-escritura**. La app
-    escribe ahí `buceo.candidate.json` (y, tras el traspaso, `buceo.json`).
+  - Durante el traspaso del manifiesto, dos:
+    - un directorio **propio** para el candidato → **lectura-escritura** (`MANIFEST_DIR`);
+    - el directorio que lee TripPlanner → **solo lectura** (`MANIFEST_CURRENT_DIR`).
+    Tras el traspaso, solo el de TripPlanner, y pasa a **lectura-escritura**.
   - Directorio del export de IDs de Jellyfin → **solo lectura**.
 - Salidas: al `8096` de Jellyfin (miniaturas y `healthz`) y a ntfy (URL interna).
 
@@ -75,7 +77,7 @@ mkdir -p /ruta/a/media/.trash && chgrp <gid-host> /ruta/a/media/.trash && chmod 
 
 Además:
 - `DATA_DIR/{main,public,cache}` propiedad de `APP_UID:APP_GID`.
-- El directorio del manifiesto, con escritura para `APP_GID`. Los ficheros se escriben
+- `MANIFEST_DIR`, con escritura para `APP_GID`. Los ficheros se escriben
   con `0644`.
 
 ### Traefik
@@ -182,21 +184,34 @@ sustituye así, sin saltarse pasos y sin dos escritores sobre el mismo fichero:
    igual.
    *Para seguir:* el export se renueva cada 15 min y `healthz` dice
    `jellyfin_ids_export.ok: true`.
-2. **La app escribe el candidato**: `MANIFEST_FILE=buceo.candidate.json` (valor por
-   defecto). Nunca `buceo.json` en este paso.
+2. **La app escribe el candidato** en un directorio propio: `MANIFEST_DIR` es ese
+   directorio, `MANIFEST_FILE=buceo.candidate.json` (valor por defecto), y el directorio
+   de TripPlanner (`MANIFEST_CURRENT_DIR`) se monta en solo lectura con
+   `compose.compare.yaml`:
+   `docker compose -f compose.yaml -f compose.compare.yaml up -d`. Así la app no puede
+   escribir `buceo.json` aunque haya una errata; si los dos directorios resultan ser el
+   mismo, el worker no escribe nada y el panel dice por qué.
    *Para seguir:* el panel muestra el manifiesto como escrito, con el mismo número de
    clips que el actual.
-3. **Comparar varios días**, incluido al menos un alta de clips nuevos:
-   `MM_MANIFEST_COMPARE_WITH=/manifest/buceo.json` en el worker. El panel
+3. **Comparar varios días**, incluido al menos un alta de clips nuevos. Con
+   `compose.compare.yaml` el worker compara cada candidato con
+   `/manifest-current/buceo.json` (`MANIFEST_CURRENT_FILE` si se llama distinto). El panel
    (Manifiesto → comparación) enseña las diferencias clip a clip: identidad,
    `jellyfin_item_id`, `captured_at_utc`, `size_bytes`. También a mano:
    `media-management compare buceo.candidate.json buceo.json`.
    *Para seguir:* cero diferencias que se repitan en dos comparaciones seguidas. Una
    diferencia que aparece en una pasada y desaparece en la siguiente es de timing
    (los dos generadores no corren a la vez).
-4. **Cambio de escritor**, en este orden: desactivar el timer del generador viejo, y
-   luego `MANIFEST_FILE=buceo.json` y quitar `MM_MANIFEST_COMPARE_WITH`. Es
-   configuración, no código.
+4. **Cambio de escritor**, en este orden:
+   1. desactivar el timer del generador viejo;
+   2. en el LXC, el directorio de TripPlanner pasa de solo lectura a
+      **lectura-escritura**;
+   3. `MANIFEST_DIR` = ese directorio, `MANIFEST_FILE=buceo.json`, vaciar
+      `MANIFEST_CURRENT_DIR` y levantar **sin** `compose.compare.yaml`
+      (`docker compose up -d`).
+
+   Es configuración, no código. Cambia qué directorio se monta, no solo el nombre del
+   fichero.
    *Para comprobar:* `generated_at` de `buceo.json` avanza con el escaneo de la app
    y TripPlanner sigue viendo sus miniaturas.
 

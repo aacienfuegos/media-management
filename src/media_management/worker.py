@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,9 @@ async def write_manifest(conn: aiosqlite.Connection, settings: Settings, roots: 
         status["problem"] = export_problem or "sin IDs de Jellyfin"
     elif not top_level:
         status["problem"] = f"ni un fichero en {root.name}"
+    elif writes_next_to_current(settings):
+        status["problem"] = ("el candidato se escribiría en el mismo directorio que el manifiesto "
+                             "con el que se compara: monta el actual aparte y en solo lectura")
     else:
         result = build_manifest(top_level, root.jellyfin_path, ids)
         text = serialize(result.doc)
@@ -56,6 +60,17 @@ async def write_manifest(conn: aiosqlite.Connection, settings: Settings, roots: 
         if settings.manifest_compare_with is not None:
             await compare_with_current(conn, settings.manifest_compare_with, result.doc)
     await set_state(conn, "manifest_status", json.dumps(status))
+
+
+def writes_next_to_current(settings: Settings) -> bool:
+    """Durante el traspaso, el manifiesto que lee producción no puede estar en el
+    directorio en el que escribe la app: una errata en el nombre lo sobrescribiría."""
+    if settings.manifest_path is None or settings.manifest_compare_with is None:
+        return False
+    try:
+        return os.path.samefile(settings.manifest_path.parent, settings.manifest_compare_with.parent)
+    except OSError:
+        return False
 
 
 async def compare_with_current(conn: aiosqlite.Connection, current_path: Path,
