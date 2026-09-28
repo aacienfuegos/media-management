@@ -1,15 +1,23 @@
-# Plantilla para la imagen oficial de nginx (/etc/nginx/templates/): se rellenan
+# Plantilla para nginx-unprivileged (/etc/nginx/templates/): se rellenan
 # solo las variables de entorno definidas, las $variables de nginx quedan tal cual.
 #
 #   TRAEFIK_IP             IP desde la que llega Traefik (la única de la que se cree X-Forwarded-For)
 #   PUBLIC_UPSTREAM        proceso público, p. ej. public:8001
 #   MEDIA_DIR              raíz de media dentro del contenedor de nginx (solo lectura)
-#   DOWNLOAD_RATE          límite de velocidad por conexión de descarga, p. ej. 8m
+#   DOWNLOAD_RATE          límite de velocidad por conexión de descarga, p. ej. 12m
 #   DOWNLOAD_CONN_PER_IP   descargas simultáneas por IP
 #   API_RATE               peticiones por minuto a /api/ por IP, p. ej. 30r/m
 
+# El ticket va en la ruta y basta para descargar durante horas: nunca se registra. Una
+# descarga servida se registra con su $uri final (/_protected/<fichero>); lo que se
+# queda en /download/ (ticket rechazado, límite) sale con el ticket tapado.
+map $uri $mm_log_uri {
+    ~*^/download/  /download/<ticket>;
+    default       $uri;
+}
+
 log_format mm_json escape=json '{"ts":"$time_iso8601","ip":"$remote_addr","method":"$request_method",'
-                               '"uri":"$uri","status":$status,"bytes":$body_bytes_sent,'
+                               '"uri":"$mm_log_uri","status":$status,"bytes":$body_bytes_sent,'
                                '"range":"$http_range","ua":"$http_user_agent","rt":$request_time}';
 
 limit_conn_zone $binary_remote_addr zone=mm_conn:10m;
@@ -28,6 +36,10 @@ server {
     real_ip_recursive off;
 
     access_log /dev/stdout mm_json;
+    # El error log lleva la línea de petición sin tapar, y un ticket puede llegar por
+    # cualquier location (p. ej. /Download/...). Solo lo crítico; el resto de fallos
+    # (límites, upstream caído) ya consta en el access log con su status.
+    error_log /dev/stderr crit;
     client_max_body_size 16k;
     limit_conn_status 429;
     limit_req_status 429;

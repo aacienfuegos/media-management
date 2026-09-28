@@ -1,0 +1,12 @@
+# Solo durante el traspaso del manifiesto (deploy/README.md):
+#   docker compose -f compose.yaml -f compose.compare.yaml up -d
+# MANIFEST_DIR es un directorio propio del candidato; el que lee producción se monta
+# aparte y en solo lectura, así que ninguna errata en MANIFEST_FILE puede sobrescribirlo.
+# El worker además se niega a escribir si los dos resultan ser el mismo directorio.
+
+services:
+  worker:
+    environment:
+      MM_MANIFEST_COMPARE_WITH: /manifest-current/${MANIFEST_CURRENT_FILE:-buceo.json}
+    volumes:
+      - ${MANIFEST_CURRENT_DIR:?}:/manifest-current:ro
