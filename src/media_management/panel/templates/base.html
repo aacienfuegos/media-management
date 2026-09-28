@@ -13,7 +13,7 @@
 <body>
 <a class="skip" href="#main">Saltar al contenido</a>
 <header class="top">
-  <a class="brand" href="/" aria-label="media, inicio"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm6 3.5v7l6-3.5-6-3.5Z"/></svg><span>media</span></a>
+  <a class="brand" href="/" aria-label="media, inicio"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v2h2V5H4Zm4 0v2h2V5H8Zm4 0v2h2V5h-2Zm4 0v2h2V5h-2ZM4 17v2h2v-2H4Zm4 0v2h2v-2H8Zm4 0v2h2v-2h-2Zm4 0v2h2v-2h-2ZM4 9v6h16V9H4Zm6 1.2 4.5 1.8-4.5 1.8v-3.6Z"/></svg><span>media</span></a>
   {% set path = request.url.path %}
   {% macro tab(href, label, also=(), key="") %}<a href="{{ href }}"{% if path == href or path.startswith(href ~ '/') or path.startswith(also) %} aria-current="page"{% endif %}{% if key %} aria-keyshortcuts="g {{ key }}"{% endif %}>{{ label }}</a>{% endmacro %}
   <nav class="nav" aria-label="Principal">

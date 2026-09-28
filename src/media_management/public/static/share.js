@@ -197,6 +197,7 @@ function showFiles(data) {
   const single = count === 1;
   const rows = data.files.map((f) => fileRow(f, single, data.title));
   const head = el("header", { class: "share-head" },
+    el("div", { class: "mark" }, icon("mark", 30)),
     el("p", { class: "eyebrow" }, data.sender ? `${data.sender} te ha compartido ${single ? "este archivo" : "estos archivos"}` : `${single ? "Archivo compartido" : "Archivos compartidos"} contigo`),
     el("h1", {}, data.title),
     el("ul", { class: "meta" },
