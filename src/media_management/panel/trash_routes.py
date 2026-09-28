@@ -57,7 +57,7 @@ async def trash_file(request: Request, file_id: int, user: CsrfUser, conn: MainD
     await audit(conn, user, "file_trash", "ok", target=f"{root.name}/{f['relpath']}", ip=client_ip(request),
                 file_id=file_id, trash=trash_rel)
     await conn.commit()
-    return RedirectResponse("/trash", status_code=303)
+    return RedirectResponse("/trash?hecho=trashed", status_code=303)
 
 
 @router.get("/files/{file_id}/rename")
@@ -91,7 +91,7 @@ async def rename(request: Request, file_id: int, user: CsrfUser, conn: MainDb,
     await audit(conn, user, "file_rename", "ok", target=f"{root.name}/{f['relpath']}", ip=client_ip(request),
                 file_id=file_id, new=new_rel)
     await conn.commit()
-    return RedirectResponse(f"/files/{file_id}", status_code=303)
+    return RedirectResponse(f"/files/{file_id}?hecho=renamed", status_code=303)
 
 
 @router.get("/trash")
@@ -123,4 +123,4 @@ async def restore_entry(request: Request, entry_id: int, user: CsrfUser, conn: M
     await audit(conn, user, "file_restore", "ok", target=f"{root.name}/{entry['relpath']}", ip=client_ip(request),
                 entry_id=entry_id)
     await conn.commit()
-    return RedirectResponse("/trash", status_code=303)
+    return RedirectResponse("/trash?hecho=restored", status_code=303)

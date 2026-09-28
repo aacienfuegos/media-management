@@ -46,7 +46,7 @@ async def revoke_token(request: Request, token_id: int, user: CsrfUser, conn: Ma
                        (now_iso(), token_id))
     await audit(conn, user, "api_token_revoked", "ok", target=token_ref(row[0]), ip=client_ip(request))
     await conn.commit()
-    return RedirectResponse("/tokens", status_code=303)
+    return RedirectResponse("/tokens?hecho=token_revoked", status_code=303)
 
 
 @router.get("/audit")

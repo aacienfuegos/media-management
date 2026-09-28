@@ -1,41 +1,64 @@
 {% extends "base.html" %}
 {% block title %}Solicitudes{% endblock %}
 {% block content %}
-<h1>Solicitudes de acceso</h1>
+<div class="page-head"><h1>Solicitudes de acceso</h1></div>
 <p class="hint">El nombre y la nota los escribe quien pide acceso: son texto de un desconocido, no una identidad verificada. Aprueba solo si sabes por otro canal quién es.</p>
-<h2>Pendientes</h2>
-<table>
-  <thead><tr><th>Nombre</th><th>Nota</th><th>Enlace</th><th>Pedido</th><th>Desde</th><th></th></tr></thead>
-  <tbody>
+
+<h2>Pendientes <span class="count">{{ pending|length }}</span></h2>
+{% if pending %}
+<ul class="request-list">
   {% for r in pending %}
-  <tr>
-    <td>{{ r.name }}</td>
-    <td><pre class="plain">{{ r.note }}</pre></td>
-    <td><a href="/links/{{ r.link_id }}">{{ titles[r.link_id] }}</a></td>
-    <td>{{ r.created_at|local }} <span class="muted">({{ r.created_at|ago }})</span></td>
-    <td class="name">{{ r.ip or "" }}</td>
-    <td><a class="button primary" href="/requests/{{ r.id }}">Resolver</a></td>
-  </tr>
-  {% else %}
-  <tr><td colspan="6" class="muted">No hay solicitudes pendientes.</td></tr>
+  <li class="request">
+    <div>
+      <div class="who-line">{{ r.name }} <span class="muted small">pide acceso a</span> <a href="/links/{{ r.link_id }}">{{ titles[r.link_id] }}</a></div>
+      {% if r.note %}<pre class="plain note">{{ r.note }}</pre>{% endif %}
+      <div class="meta">{{ r.created_at|ago }} · {{ r.created_at|local }} · desde <span class="name">{{ r.ip or "IP desconocida" }}</span> · <a href="/requests/{{ r.id }}">ver detalles</a></div>
+    </div>
+    <div class="decide">
+      {% if r.link_id in approvable %}
+      <form method="post" action="/requests/{{ r.id }}/approve" class="inline-fields">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label class="sr-only" for="days-{{ r.id }}">Días de acceso para {{ r.name }}</label>
+        <input id="days-{{ r.id }}" name="days" type="number" min="1" max="{{ max_days }}" value="{{ approvable[r.link_id] }}" required title="Días de acceso; por defecto, lo que le queda al enlace">
+        <span class="small muted">días</span>
+        <button class="primary">Aprobar</button>
+      </form>
+      {% else %}
+      <span class="tag">enlace inactivo</span>
+      {% endif %}
+      <form method="post" action="/requests/{{ r.id }}/reject" class="inline" data-confirm="¿Rechazar la solicitud de «{{ r.name }}»?">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="danger">Rechazar</button>
+      </form>
+    </div>
+  </li>
   {% endfor %}
-  </tbody>
-</table>
+</ul>
+{% else %}
+<div class="panel empty">
+  <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 14.2-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4-7 7Z"/></svg>
+  <strong>No hay solicitudes pendientes</strong>
+  <p>Cuando alguien pida acceso a un enlace <em>por solicitud</em>, aparecerá aquí para que lo apruebes o lo rechaces.</p>
+</div>
+{% endif %}
+
 <h2>Recientes</h2>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Nombre</th><th>Enlace</th><th>Pedido</th><th>Estado</th><th>Resuelto</th></tr></thead>
+  <thead><tr><th>Nombre</th><th>Enlace</th><th class="opt">Pedido</th><th>Estado</th><th class="opt-sm">Resuelto</th></tr></thead>
   <tbody>
   {% for r in recent %}
   <tr>
     <td>{{ r.name }}</td>
     <td><a href="/links/{{ r.link_id }}">{{ titles[r.link_id] }}</a></td>
-    <td>{{ r.created_at|local }}</td>
+    <td class="nowrap opt">{{ r.created_at|local }}</td>
     <td>{% if r.status == "approved" %}<span class="tag ok">aprobada</span>{% elif r.status == "rejected" %}<span class="tag">rechazada</span>{% else %}<span class="tag">caducada sin respuesta</span>{% endif %}</td>
-    <td>{{ r.resolved_at|local if r.resolved_at else "—" }}{% if r.resolved_by %} <span class="muted">por {{ r.resolved_by }}</span>{% endif %}</td>
+    <td class="opt-sm">{{ r.resolved_at|local if r.resolved_at else "—" }}{% if r.resolved_by %} <span class="sub">por {{ r.resolved_by }}</span>{% endif %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="5" class="muted">Nada todavía.</td></tr>
+  <tr><td colspan="5" class="empty"><p>Nada todavía.</p></td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}
