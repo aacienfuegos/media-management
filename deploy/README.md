@@ -288,8 +288,9 @@ sustituye así, sin saltarse pasos y sin dos escritores sobre el mismo fichero:
 2. **La app escribe el candidato** en un directorio propio: `MANIFEST_DIR` es ese
    directorio, `MANIFEST_FILE=buceo.candidate.json` (valor por defecto), y el directorio
    de TripPlanner (`MANIFEST_CURRENT_DIR`) se monta en solo lectura con
-   `compose.compare.yaml`:
-   `docker compose -f compose.yaml -f compose.compare.yaml up -d`. Así la app no puede
+   `compose.compare.yaml`, activado en el `.env` con
+   `COMPOSE_FILE=compose.yaml:compose.compare.yaml` (no con dos `-f`: un
+   `docker compose up -d` a secas quitaría el montaje de solo lectura). Así la app no puede
    escribir `buceo.json` aunque haya una errata; si los dos directorios resultan ser el
    mismo, el worker no escribe nada y el panel dice por qué.
    *Para seguir:* el panel muestra el manifiesto como escrito, con el mismo número de
@@ -308,8 +309,8 @@ sustituye así, sin saltarse pasos y sin dos escritores sobre el mismo fichero:
    2. en el LXC, el directorio de TripPlanner pasa de solo lectura a
       **lectura-escritura**;
    3. `MANIFEST_DIR` = ese directorio, `MANIFEST_FILE=buceo.json`, vaciar
-      `MANIFEST_CURRENT_DIR` y levantar **sin** `compose.compare.yaml`
-      (`docker compose up -d`).
+      `MANIFEST_CURRENT_DIR`, quitar `COMPOSE_FILE` del `.env` y
+      `docker compose up -d`.
 
    Es configuración, no código. Cambia qué directorio se monta, no solo el nombre del
    fichero.

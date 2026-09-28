@@ -32,6 +32,9 @@ def setup_logging(process: str) -> None:
     root = logging.getLogger()
     root.handlers[:] = [handler]
     root.setLevel(logging.INFO)
+    # httpx registra a INFO la URL de cada petición, y la de una miniatura lleva el ID de
+    # Jellyfin, que basta para pedir el vídeo a su endpoint de streaming sin autenticar.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("media_management").info("arranque", extra={"fields": {"process": process}})
 
 
