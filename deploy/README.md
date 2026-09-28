@@ -208,6 +208,35 @@ montar, el servicio se salta limpio. Borra `.trash/<raíz>/<AAAA-MM-DD>/` con m�
 días, nunca sigue symlinks y se niega si `TRASH_DIR` no termina en `/.trash` o no
 existe. Probar primero con `-n`. La app solo mueve ficheros: nunca borra.
 
+### ZIP de los enlaces
+
+Un enlace con dos o más ficheros puede ofrecer además un ZIP con todo (casilla al
+crearlo, activada por defecto). Lo genera el worker y lo sirve nginx desde `ZIPS_DIR`,
+**fuera de `MEDIA_DIR`**: dentro lo escanearía el catálogo y quizá Jellyfin, y el
+worker necesitaría escritura en la biblioteca.
+
+- **Marcador**, en el disco real y antes de montar el directorio:
+  `touch <ZIPS_DIR>/.zips-root`. Sin él el worker no escribe ni borra nada ahí, los
+  enlaces se ofrecen solo fichero a fichero y el log lo dice como error. Si el disco no
+  estuviera montado, `ZIPS_DIR` sería un directorio vacío del disco del sistema y los
+  gigas irían a parar ahí.
+- **Permisos**: propiedad de `APP_UID:APP_GID` con `0755`. Escribe solo el worker; nginx
+  (UID 101) lee los zips, que se crean con `0644`. El panel y el proceso público no lo
+  montan: el estado sale de la BD.
+- **Espacio**: cada zip ocupa lo mismo que los ficheros del enlace mientras el enlace
+  vive. No se genera si después quedarían menos de `ZIP_MIN_FREE_GB` libres o si pasa de
+  `ZIP_MAX_GB` (0 = sin tope); el enlace sigue funcionando fichero a fichero y la ficha
+  del enlace dice el motivo.
+- **Ciclo de vida**: el worker compara cada pocos segundos lo que hay con lo que debería
+  haber. Revocar, caducar o quitar el zip lo borra; renovar lo rehace; mandar un fichero
+  a la papelera, restaurarlo o renombrarlo lo anula en el acto y lo rehace. Cada versión
+  es `<enlace>-<versión>.zip` y el ticket va ligado a ella: reanudar una descarga del zip
+  viejo da 404 en vez de mezclar dos zips. Un fallo al generarlo se reintenta con espera
+  creciente y hasta cinco veces; la ficha del enlace tiene "Regenerar el ZIP".
+- **Borrado**: es la única excepción a "la app nunca borra", porque son datos
+  derivados. El worker solo borra dentro de `ZIPS_DIR`, sin seguir symlinks y solo
+  nombres con la forma de los suyos (`<n>-<n>.zip` y su temporal).
+
 ### ntfy
 
 Un tema propio para las solicitudes de acceso (no el de alertas) y un token con
@@ -257,7 +286,7 @@ propósito: rompería reanudar en el móvil al pasar de wifi a datos. Recoger lo
 ### Copias de seguridad
 
 `DATA_DIR/main` y `DATA_DIR/public`: enlaces vivos, concesiones, tokens y auditoría.
-`DATA_DIR/cache` no hace falta. Para una copia consistente con la app en marcha:
+`DATA_DIR/cache` y `ZIPS_DIR` no hacen falta: son datos derivados y se regeneran. Para una copia consistente con la app en marcha:
 
 ```sh
 sqlite3 DATA_DIR/main/main.db ".backup /destino/main.db"
@@ -275,6 +304,23 @@ Se suben a mano:
   valor en `NGINX_IMAGE`.
 
 Luego `docker compose pull && docker compose up -d`.
+
+### Antes de actualizar a la versión con ZIP
+
+**Rompe si no se prepara antes:** `compose.yaml` exige `ZIPS_DIR` (`${ZIPS_DIR:?}`).
+Con la imagen nueva y el `.env` viejo, `docker compose up` no arranca **ningún**
+servicio. Antes del `pull`:
+
+1. Crear el directorio en el disco de datos, con `.zips-root` dentro, y montarlo en el
+   LXC (ver "ZIP de los enlaces").
+2. Añadir `ZIPS_DIR` al `.env` (y, si hacen falta otros valores, `ZIP_MIN_FREE_GB` y
+   `ZIP_MAX_GB`).
+3. `docker compose config -q` sin errores.
+
+El esquema se amplía solo al arrancar: dos tablas nuevas (`link_zips` en `main.db`,
+`ticket_zip_entries` en `public.db`), creadas con `CREATE TABLE IF NOT EXISTS` y sin
+tocar las existentes. Volver a la imagen anterior las ignora; lo único que se pierde
+son las descargas de ZIP a medio reanudar, cuyo ticket la versión vieja no entiende.
 
 ## Traspaso del manifiesto
 
@@ -333,6 +379,13 @@ la forma más barata de aprobar es mirar el fichero equivocado o romper el servi
   - `grep /download/` y `grep /_protected/` **sí** encuentran esas descargas.
 
   En el access log de Traefik el ticket sí aparece (riesgo aceptado, ver "Registros").
+- **ZIP.** Crear un enlace de prueba con dos ficheros y la casilla del ZIP: en unos
+  segundos la ficha dice "listo" y `ZIPS_DIR` tiene `<enlace>-1.zip`. Bajarlo, cortarlo a
+  mitad y reanudarlo; `unzip -t` sobre lo bajado da OK y el access log de nginx registra
+  `/_zips/<enlace>-1.zip` sin el ticket. Revocar el enlace: en unos segundos el zip ya no
+  está en `ZIPS_DIR`. Pareja del marcador: con `.zips-root` renombrado, la ficha dice
+  "almacén de ZIP no montado", el log del worker lo da como error y no aparece nada
+  nuevo en `ZIPS_DIR`; al devolverlo, el zip vuelve.
 - **IP real.** La IP que registra el panel en una descarga es la del cliente, no la de
   Traefik, la de nginx ni la pasarela de Docker.
 - **Control de la app**, desde el propio LXC y por su IP (no `localhost`, que no pasa

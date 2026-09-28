@@ -42,12 +42,17 @@ solo lectura (por URI y por montaje) y solo escribe en `public.db`.
   enlace caduca antes) para poder reanudar. Cada petición, también cada `Range`,
   vuelve a comprobar que el enlace y la concesión siguen vivos.
 - **Los bytes no pasan por Python**: nginx los sirve por `X-Accel-Redirect` desde una
-  `location internal`.
+  `location internal`. También el ZIP de un enlace: lo genera el worker en segundo
+  plano (sin compresión, zip64 donde hace falta) en un directorio propio, y se sirve y
+  se reanuda como cualquier fichero. Se rehace cuando cambia el contenido del enlace y
+  se borra cuando el enlace deja de estar vivo.
 - **El cliente nunca manda rutas**, solo identificadores; la ruta sale de la BD y se
   valida con `realpath` contra la raíz.
 - **La app mueve, nunca desenlaza.** Borrar es un `rename` sin sobrescritura a una
   papelera fuera de las raíces; el host la vacía. En las raíces marcadas como
-  `requires_second_copy`, no se borra nada que no conste en una segunda copia.
+  `requires_second_copy`, no se borra nada que no conste en una segunda copia. La única
+  excepción son los ZIP de los enlaces, datos derivados que el worker borra solo dentro
+  de su directorio.
 - **El endpoint de streaming de Jellyfin no pide autenticación**: hacia internet no sale
   nunca un ID ni una URL de Jellyfin. Las miniaturas se copian al crear el enlace, sin
   metadatos.

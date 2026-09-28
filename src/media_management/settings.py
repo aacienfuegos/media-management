@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     ntfy_topic: str = ""
     ntfy_token: str = ""
 
+    # Solo el worker escribe aquí; nginx lo lee. Sin él, no se generan zips.
+    zips_dir: Path | None = None
+    zip_min_free_gb: int = 20
+    zip_max_gb: int = 0
+    zip_retry_s: int = 300
+    zip_max_attempts: int = 5
+
     ticket_ttl_s: int = 4 * 3600
     link_default_days: int = 7
     link_max_days: int = 90

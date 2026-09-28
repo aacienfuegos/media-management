@@ -61,6 +61,8 @@ def load_roots(settings: Settings) -> dict[str, Root]:
         if settings.trash_dir.is_relative_to(root.path) or root.path.is_relative_to(settings.trash_dir):
             raise ValueError(f"la papelera no puede solaparse con la raíz {root.name}")
         roots[root.name] = root
+    if settings.zips_dir is not None:
+        _check_zips_dir(settings.zips_dir, settings, roots)
     if sum(r.in_manifest for r in roots.values()) > 1:
         raise ValueError("el manifiesto v1 es de una sola raíz")
     for a in roots.values():
@@ -70,6 +72,19 @@ def load_roots(settings: Settings) -> dict[str, Root]:
         if a.thumbnail_from is not None and a.thumbnail_from not in roots:
             raise ValueError(f"thumbnail_from de {a.name} apunta a una raíz inexistente")
     return roots
+
+
+def _check_zips_dir(zips_dir: Path, settings: Settings, roots: dict[str, Root]) -> None:
+    """El worker borra en `zips_dir`: dentro de la biblioteca o de la papelera, o por
+    encima de ellas, podría llegar a borrar lo que no es suyo."""
+    zips = [zips_dir, Path(os.path.realpath(zips_dir))]
+    protected = {"la biblioteca": settings.media_base, "la papelera": settings.trash_dir,
+                 **{f"la raíz {r.name}": r.path for r in roots.values()}}
+    for what, path in protected.items():
+        for z in zips:
+            for p in (path, Path(os.path.realpath(path))):
+                if z.is_relative_to(p) or p.is_relative_to(z):
+                    raise ValueError(f"el directorio de zips no puede solaparse con {what}")
 
 
 def kind_of(name: str) -> str:

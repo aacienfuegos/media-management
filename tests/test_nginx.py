@@ -1,5 +1,7 @@
 """nginx de verdad delante del proceso público: IP real, X-Accel-Redirect, Range y
 límites por IP. Necesita Docker; se salta sin él."""
+import hashlib
+import io
 import os
 import shutil
 import socket
@@ -7,6 +9,7 @@ import subprocess
 import threading
 import time
 import uuid
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from urllib.parse import quote
@@ -18,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from media_management.public.app import create_app as create_public
 from tests.conftest import Env
-from tests.helpers import create_link, link_file_ids, send_files, sql
+from tests.helpers import create_link, link_file_ids, reconcile, send_files, sql
 
 pytestmark = pytest.mark.docker
 TEMPLATE = Path(__file__).parent.parent / "deploy" / "nginx" / "share.conf.template"
@@ -75,6 +78,7 @@ def stack(env: Env, panel: TestClient, request: pytest.FixtureRequest) -> Iterat
          "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
          "-p", f"127.0.0.1:{nginx_port}:8080",
          "-v", f"{templates}:/etc/nginx/templates:ro", "-v", f"{env.base}:/media:ro",
+         "-v", f"{env.settings.zips_dir}:/zips:ro", "-e", "ZIPS_DIR=/zips",
          "-e", f"TRAEFIK_IP={traefik}", "-e", f"PUBLIC_UPSTREAM=host.docker.internal:{app_port}",
          "-e", "MEDIA_DIR=/media", "-e", "DOWNLOAD_RATE=256k", "-e", "DOWNLOAD_CONN_PER_IP=1",
          "-e", "API_RATE=600r/m", IMAGE], check=True, capture_output=True)
@@ -123,6 +127,34 @@ def test_download_through_nginx(stack: tuple[Env, TestClient, str]) -> None:
     assert '"uri":"/download/<ticket>"' in logs and logs.count('"uri":"/_protected/send/viaje/') == 2
     assert client.get("/_protected/viaje/" + quote("clip grande ñ.mp4")).status_code == 404
     assert client.get("/_protected/../roots.toml").status_code in (400, 404)
+
+
+def test_zip_through_nginx_resumes(stack: tuple[Env, TestClient, str]) -> None:
+    env, panel, base = stack
+    assert env.settings.zips_dir is not None
+    files = {"uno.bin": os.urandom(300_000), "dos/dos.bin": os.urandom(300_000)}
+    ids = send_files(env, files)
+    token, link_id = create_link(panel, list(ids.values()), title="Viaje", zip=True)
+    reconcile(env)
+    on_disk = (env.settings.zips_dir / f"{link_id}-1.zip").read_bytes()
+    client = httpx.Client(base_url=base, headers={"X-Forwarded-For": "203.0.113.5"}, timeout=30)
+    url = client.post("/api/zip", json={"token": token}).json()["url"]
+    full = client.get(url)
+    assert full.status_code == 200 and full.headers["content-type"] == "application/octet-stream"
+    assert "filename*=UTF-8''Viaje.zip" in full.headers["content-disposition"]
+    assert full.headers["x-content-type-options"] == "nosniff" and "x-accel-redirect" not in full.headers
+    half = len(on_disk) // 2
+    first = client.get(url, headers={"Range": f"bytes=0-{half - 1}"})
+    rest = client.get(url, headers={"Range": f"bytes={half}-"})
+    assert first.status_code == rest.status_code == 206
+    assert hashlib.sha256(first.content + rest.content).digest() == hashlib.sha256(on_disk).digest()
+    assert hashlib.sha256(full.content).digest() == hashlib.sha256(on_disk).digest()
+    with zipfile.ZipFile(io.BytesIO(full.content)) as zf:
+        assert {n: zf.read(n) for n in zf.namelist()} == {"uno.bin": files["uno.bin"], "dos.bin": files["dos/dos.bin"]}
+    ticket = url.rsplit("/", 1)[1]
+    logs = nginx_logs(base, until=f'"uri":"/_zips/{link_id}-1.zip"', times=3)
+    assert ticket not in logs and ticket[:-4] not in logs
+    assert client.get(f"/_zips/{link_id}-1.zip").status_code == 404
 
 
 def test_connection_limit_is_per_client_ip(stack: tuple[Env, TestClient, str]) -> None:
