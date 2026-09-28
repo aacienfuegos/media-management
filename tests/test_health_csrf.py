@@ -71,3 +71,11 @@ def test_action_notice_comes_from_a_fixed_key(env: Env, panel: TestClient) -> No
     assert "Enlace revocado." in panel.get(r.headers["location"]).text
     page = panel.get(f"/links/{link_id}?hecho=%3Cscript%3Ealert(1)%3C/script%3E").text
     assert "alert(1)" not in page and 'role="status"' not in page
+
+
+def test_audit_reads_in_spanish(env: Env, panel: TestClient) -> None:
+    ids = send_files(env, {"a.txt": b"A"})
+    create_link(panel, list(ids.values()))
+    page = panel.get("/audit").text
+    assert '<optgroup label="Enlaces">' in page and ">Enlace creado<" in page
+    assert '<span class="muted">modo</span> abierto' in page and "link_id" not in page
