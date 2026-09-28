@@ -11,14 +11,16 @@
 <body>
 <header class="top">
   <a class="brand" href="/">media</a>
+  {% set path = request.url.path %}
+  {% macro tab(href, label) %}<a href="{{ href }}"{% if path == href or path.startswith(href ~ '/') %} aria-current="page"{% endif %}>{{ label }}</a>{% endmacro %}
   <nav>
-    {% for name in roots %}<a href="/roots/{{ name }}">{{ name }}</a>{% endfor %}
-    <a href="/manifest">Manifiesto</a>
-    <a href="/links">Enlaces</a>
-    <a href="/requests">Solicitudes</a>
-    <a href="/trash">Papelera</a>
-    <a href="/tokens">Tokens API</a>
-    <a href="/audit">Registro</a>
+    {% for name in roots %}{{ tab('/roots/' ~ name, name) }}{% endfor %}
+    {{ tab('/manifest', 'Manifiesto') }}
+    {{ tab('/links', 'Enlaces') }}
+    {{ tab('/requests', 'Solicitudes') }}
+    {{ tab('/trash', 'Papelera') }}
+    {{ tab('/tokens', 'Tokens API') }}
+    {{ tab('/audit', 'Registro') }}
   </nav>
   <span class="who">{{ user }}</span>
 </header>
