@@ -17,6 +17,7 @@ from media_management.roots import Root, load_roots, media_problem
 from media_management.settings import Settings
 from media_management.thumbs import get_thumb, thumb_item_id
 from media_management.trash import reconcile_trash
+from media_management.zips import zip_loop
 
 log = logging.getLogger(__name__)
 THUMB_PREFETCH_PER_CYCLE = 400
@@ -154,6 +155,7 @@ async def run(settings: Settings) -> None:
     # Conexión que vive lo que el proceso: mantiene los ficheros -wal/-shm de main.db,
     # sin los que el proceso público, que la ve en solo lectura, no puede abrirla.
     conn = await open_persistent(settings.main_db)
+    zips = asyncio.create_task(zip_loop(settings, roots))
     try:
         while True:
             try:
@@ -163,6 +165,7 @@ async def run(settings: Settings) -> None:
                 await conn.rollback()
             await wait_next(conn, settings)
     finally:
+        zips.cancel()
         await conn.close()
 
 

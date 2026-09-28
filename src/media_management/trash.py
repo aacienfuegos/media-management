@@ -16,6 +16,7 @@ import aiosqlite
 from media_management.db import now_iso, utcnow
 from media_management.roots import PathRejected, Root, resolve_in_root
 from media_management.settings import Settings
+from media_management.zips import invalidate_for_file
 
 _AT_FDCWD = -100
 _RENAME_NOREPLACE = 1
@@ -85,6 +86,7 @@ async def move_to_trash(conn: aiosqlite.Connection, settings: Settings, root: Ro
     _move(src, dst)
     trash_rel = str(dst.relative_to(settings.trash_dir))
     await conn.execute("UPDATE files SET present = 0 WHERE id = ?", (file_row["id"],))
+    await invalidate_for_file(conn, file_row["id"])
     await conn.execute(
         "INSERT INTO trash_entries (file_id, root, relpath, trash_relpath, size_bytes, trashed_at, trashed_by) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -114,6 +116,7 @@ async def restore(conn: aiosqlite.Connection, settings: Settings, root: Root, en
     await conn.execute("UPDATE trash_entries SET restored_at = ? WHERE id = ?", (now_iso(), entry["id"]))
     if entry["file_id"] is not None:
         await conn.execute("UPDATE files SET present = 1 WHERE id = ?", (entry["file_id"],))
+        await invalidate_for_file(conn, entry["file_id"])
 
 
 async def rename_file(conn: aiosqlite.Connection, root: Root, file_row: aiosqlite.Row, new_name: str) -> str:
@@ -123,6 +126,7 @@ async def rename_file(conn: aiosqlite.Connection, root: Root, file_row: aiosqlit
     parent = PurePosixPath(file_row["relpath"]).parent
     new_rel = str(parent / new_name) if str(parent) != "." else new_name
     await conn.execute("UPDATE files SET relpath = ?, name = ? WHERE id = ?", (new_rel, new_name, file_row["id"]))
+    await invalidate_for_file(conn, file_row["id"])
     return new_rel
 
 

@@ -65,6 +65,16 @@ def test_missing_sentinel_means_not_mounted(env: Env) -> None:
     assert problem is not None and "centinela" in problem
 
 
+@pytest.mark.parametrize("where", ["media/.trash/zips", "media/send/zips", "media", "media/zips", ".",
+                                   "enlace-a-media/zips"])
+def test_zips_dir_cannot_overlap_library_or_trash(tmp_path: Path, where: str) -> None:
+    settings = make_settings(tmp_path)
+    load_roots(settings)
+    (tmp_path / "enlace-a-media").symlink_to(settings.media_base)
+    with pytest.raises(ValueError, match="directorio de zips"):
+        load_roots(settings.model_copy(update={"zips_dir": tmp_path / where}))
+
+
 def test_roots_outside_base_or_overlapping_are_rejected(tmp_path: Path) -> None:
     base = tmp_path
     settings = make_settings(base)

@@ -44,6 +44,23 @@ CREATE TABLE IF NOT EXISTS link_files (
     UNIQUE (link_id, file_id)
 );
 
+-- Una fila por enlace con el zip activado. `fingerprint` no nulo significa que el zip
+-- `<link_id>-<version>.zip` está listo y contiene exactamente esos ficheros; lo pone
+-- el worker al generarlo y lo anula cualquiera que cambie el contenido del enlace.
+CREATE TABLE IF NOT EXISTS link_zips (
+    link_id INTEGER PRIMARY KEY REFERENCES links (id),
+    version INTEGER NOT NULL DEFAULT 0,
+    fingerprint TEXT,
+    size_bytes INTEGER,
+    entries TEXT,
+    built_at TEXT,
+    building_at TEXT,
+    problem TEXT,
+    failures INTEGER NOT NULL DEFAULT 0,
+    failed_fingerprint TEXT,
+    failed_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS grants (
     id INTEGER PRIMARY KEY,
     link_id INTEGER NOT NULL REFERENCES links (id),

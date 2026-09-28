@@ -1,5 +1,6 @@
 import base64
 import datetime
+import json
 import os
 import secrets
 import time
@@ -14,19 +15,23 @@ from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 
 from media_management.db import connect, iso, now_iso, parse_iso
-from media_management.links import active_link_by_hash, is_active, link_by_id, link_file, link_files
+from media_management.links import (
+    LinkFile, active_link_by_hash, is_active, link_by_id, link_file, link_files, servable_path)
 from media_management.logs import public_event
 from media_management.public.credentials import Denied, authorize, grant_still_valid
 from media_management.public.guard import client_ip
-from media_management.roots import PathRejected, Root, resolve_in_root
+from media_management.roots import Root
 from media_management.notify import notify_access_request
 from media_management.security import (
     Ticket, format_code, hash_code, hash_token, new_request_code, sign_ticket, token_ref, verify_ticket)
 from media_management.settings import Settings
+from media_management.zips import ZipStatus, zip_name, zip_status
 
 router = APIRouter()
 TOKEN = r"^[A-Za-z0-9_-]{20,100}$"
 NOT_FOUND = {"error": "not_found"}
+# `link_file_id` de un ticket que cubre el zip con todos los ficheros del enlace.
+ALL_FILES = 0
 
 
 class ShareIn(BaseModel):
@@ -98,28 +103,36 @@ async def share(request: Request, body: ShareIn, main: MainRo, pconn: PublicDb) 
     if isinstance(result, Denied):
         return denied_response(result)
     files = [lf for lf in await link_files(main, link["id"]) if lf.present]
+    z = await zip_status(main, link["id"], len(files))
     return JSONResponse({
         "title": link["title"], "mode": link["mode"],
         "expires_at": result.expires_at,
         "files": [{"id": lf.id, "name": lf.name, "size": lf.size_bytes, "kind": lf.kind,
                    "thumb": _thumb(lf.thumb_jpeg)} for lf in files],
+        "zip": _public_zip(z),
     })
 
 
-def _servable(root: Root | None, relpath: str) -> Path | None:
-    if root is None or not root.shareable:
+def _public_zip(z: ZipStatus | None) -> dict[str, Any] | None:
+    """Hacia fuera solo "listo" o "preparando"; si no se va a generar, no hay zip."""
+    if z is None or z.state in ("skipped", "failed"):
         return None
-    try:
-        real = resolve_in_root(root, relpath)
-    except PathRejected:
-        return None
-    return real if real.is_file() else None
+    return {"state": "ready", "size": z.size_bytes} if z.state == "ready" else {"state": "pending"}
 
 
-@router.post("/api/ticket")
-async def ticket(request: Request, body: TicketIn, main: MainRo, pconn: PublicDb) -> Response:
-    """Ticket de descarga de un fichero. Firmado, ligado al enlace, al fichero y a la
-    credencial, y con caducidad propia para poder reanudar."""
+def _real_path(request: Request, lf: LinkFile | None) -> Path | None:
+    roots: dict[str, Root] = request.app.state.roots
+    return servable_path(roots, settings_of(request).media_base, lf)
+
+
+async def _ready_zip(main: aiosqlite.Connection, link_id: int) -> ZipStatus | None:
+    present = sum(lf.present for lf in await link_files(main, link_id))
+    z = await zip_status(main, link_id, present)
+    return z if z is not None and z.state == "ready" else None
+
+
+async def _issue(request: Request, body: ShareIn, main: aiosqlite.Connection | None,
+                 pconn: aiosqlite.Connection, link_file_id: int) -> Response:
     if main is None:
         return unavailable()
     settings = settings_of(request)
@@ -132,23 +145,45 @@ async def ticket(request: Request, body: TicketIn, main: MainRo, pconn: PublicDb
     if isinstance(result, Denied):
         await pconn.commit()
         return denied_response(result)
-    lf = await link_file(main, link["id"], body.file)
-    roots: dict[str, Root] = request.app.state.roots
-    if lf is None or not lf.present or _servable(roots.get(lf.root), lf.relpath) is None:
+    z = None
+    if link_file_id == ALL_FILES:
+        z = await _ready_zip(main, link["id"])
+        servable = z is not None
+    else:
+        servable = _real_path(request, await link_file(main, link["id"], link_file_id)) is not None
+    if not servable:
         await pconn.commit()
         return not_found()
     expires = min(int(time.time()) + settings.ticket_ttl_s, int(parse_iso(result.expires_at).timestamp()))
-    t = Ticket(secrets.token_hex(16), link["id"], lf.id, result.grant_id, expires)
+    t = Ticket(secrets.token_hex(16), link["id"], link_file_id, result.grant_id, expires,
+               None if z is None else z.version)
     await pconn.execute(
         "INSERT INTO tickets (id, link_id, link_file_id, grant_id, issued_at, expires_at, ip, user_agent) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (t.ticket_id, t.link_id, t.link_file_id, t.grant_id, now_iso(),
          iso(datetime.datetime.fromtimestamp(expires, datetime.UTC)),
          ip, request.headers.get("user-agent", "")[:300]))
+    if z is not None:
+        await pconn.execute("INSERT INTO ticket_zip_entries (ticket_id, names) VALUES (?, ?)",
+                            (t.ticket_id, json.dumps(z.entries)))
     await public_event(pconn, "ticket_issued", "ok", link_id=link["id"], ref=t.ticket_id[:12], ip=ip,
-                       link_file_id=lf.id, grant_id=result.grant_id)
+                       link_file_id=link_file_id, grant_id=result.grant_id)
     await pconn.commit()
     return JSONResponse({"url": f"/download/{sign_ticket(settings.ticket_key, t)}"})
+
+
+@router.post("/api/ticket")
+async def ticket(request: Request, body: TicketIn, main: MainRo, pconn: PublicDb) -> Response:
+    """Ticket de descarga de un fichero. Firmado, ligado al enlace, al fichero y a la
+    credencial, y con caducidad propia para poder reanudar."""
+    return await _issue(request, body, main, pconn, body.file)
+
+
+@router.post("/api/zip")
+async def zip_ticket(request: Request, body: ShareIn, main: MainRo, pconn: PublicDb) -> Response:
+    """Ticket del zip con todos los ficheros del enlace, ligado a su versión: si el
+    zip se rehace, una reanudación del viejo da 404 en vez de mezclar los dos."""
+    return await _issue(request, body, main, pconn, ALL_FILES)
 
 
 def content_disposition(name: str) -> str:
@@ -174,29 +209,33 @@ async def download(request: Request, raw: str, main: MainRo, pconn: PublicDb) ->
         return gone
     if t.grant_id is not None and not await grant_still_valid(main, t.grant_id, link["id"]):
         return gone
-    lf = await link_file(main, link["id"], t.link_file_id)
-    roots: dict[str, Root] = request.app.state.roots
-    if lf is None or not lf.present:
-        return gone
-    real = _servable(roots.get(lf.root), lf.relpath)
-    if real is None:
-        return gone
-    base = Path(os.path.realpath(settings.media_base))
-    if not real.is_relative_to(base):
-        return gone
+    if t.zip_version is not None:
+        z = await _ready_zip(main, link["id"])
+        if z is None or z.version != t.zip_version:
+            return gone
+        accel = "/_zips/" + zip_name(link["id"], z.version)
+        filename = f"{link['title'] or 'descarga'}.zip"
+    else:
+        lf = await link_file(main, link["id"], t.link_file_id)
+        real = _real_path(request, lf)
+        if lf is None or real is None:
+            return gone
+        base = Path(os.path.realpath(settings.media_base))
+        accel = "/_protected/" + quote(str(real.relative_to(base)), safe="/")
+        filename = lf.name
     ip = client_ip(request, settings)
     range_header = request.headers.get("range")
     await pconn.execute(
         "INSERT INTO downloads (ticket_id, link_id, link_file_id, grant_id, ts, ip, user_agent, range_header) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (t.ticket_id, link["id"], lf.id, t.grant_id, now_iso(), ip,
+        (t.ticket_id, link["id"], t.link_file_id, t.grant_id, now_iso(), ip,
          request.headers.get("user-agent", "")[:300], (range_header or "")[:100] or None))
     await public_event(pconn, "download_served", "ok", link_id=link["id"], ref=t.ticket_id[:12], ip=ip,
-                       link_file_id=lf.id, grant_id=t.grant_id, range=range_header)
+                       link_file_id=t.link_file_id, grant_id=t.grant_id, range=range_header)
     await pconn.commit()
     return Response(status_code=200, headers={
-        "X-Accel-Redirect": "/_protected/" + quote(str(real.relative_to(base)), safe="/"),
-        "Content-Disposition": content_disposition(lf.name),
+        "X-Accel-Redirect": accel,
+        "Content-Disposition": content_disposition(filename),
     })
 
 

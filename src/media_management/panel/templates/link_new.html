@@ -32,6 +32,11 @@
     <input id="days" name="days" type="number" min="1" max="{{ max_days }}" value="{{ default_days }}" required>
     <p class="hint">Obligatorio, máximo {{ max_days }}. Se puede renovar desde aquí.</p>
 
+    {% if files|length >= 2 %}
+    <label><input type="checkbox" name="zip" value="true" {% if zip %}checked{% endif %}> Ofrecer también un ZIP con todo</label>
+    <p class="hint">Se genera en segundo plano y ocupa lo mismo que los ficheros mientras el enlace esté vivo. Sin él, se descarga fichero a fichero.</p>
+    {% endif %}
+
     <p><button class="primary">Crear enlace</button></p>
   </div>
   <div>
