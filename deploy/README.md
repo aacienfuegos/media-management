@@ -129,9 +129,18 @@ permiso **solo de escritura** en ese tema. `MM_NTFY_URL` es la URL interna.
 
 ### Secretos (`.env`)
 
-Parte de `.env.example`. Secretos: `MM_SECRET_KEY` (firma de tickets y CSRF, al menos
-32 caracteres aleatorios; cambiarla invalida los tickets vivos) y `MM_NTFY_TOKEN`.
-Nada de secretos en el compose ni en git.
+Parte de `.env.example`. Secretos, cada uno solo en el contenedor que lo usa:
+
+| Variable | Contenedor | Para qué |
+|---|---|---|
+| `MM_TICKET_KEY` | `public` | Firma de los tickets de descarga. Cambiarla invalida los tickets vivos |
+| `MM_CSRF_KEY` | `panel` | Firma de los tokens CSRF. Cambiarla obliga a recargar el panel |
+| `MM_NTFY_TOKEN` | `public` | Aviso de solicitudes de acceso |
+
+Las dos claves, de al menos 32 caracteres aleatorios y distintas
+(`openssl rand -base64 48`); sin su clave, el proceso no arranca. El `.env` solo se usa
+para interpolar `compose.yaml`: una variable `MM_*` que no aparezca allí no llega a
+ningún contenedor. Nada de secretos en el compose ni en git.
 
 ### Monitorización
 
