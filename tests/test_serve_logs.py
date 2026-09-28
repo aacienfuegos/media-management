@@ -7,8 +7,10 @@ import time
 from pathlib import Path
 
 import httpx
+import pytest
 
 from media_management.db import init_main
+from media_management.logs import setup_logging
 
 from tests.conftest import CSRF_KEY, TICKET_KEY, make_settings
 
@@ -43,3 +45,13 @@ def test_public_process_does_not_log_the_ticket_path(tmp_path: Path) -> None:
         out, _ = proc.communicate(timeout=10)
     assert '"arranque"' in out
     assert ticket not in out
+
+
+def test_jellyfin_item_ids_in_urls_are_not_logged(capsys: pytest.CaptureFixture[str]) -> None:
+    """La URL de una miniatura lleva el ID, que basta para pedir el vídeo sin autenticar."""
+    setup_logging("worker")
+    item_id = "0123456789abcdef0123456789abcdef"
+    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    httpx.Client(transport=transport).get(f"http://jellyfin.invalid/Items/{item_id}/Images/Primary")
+    out = capsys.readouterr().out
+    assert '"arranque"' in out and item_id not in out
