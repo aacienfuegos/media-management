@@ -79,3 +79,10 @@ def test_audit_reads_in_spanish(env: Env, panel: TestClient) -> None:
     page = panel.get("/audit").text
     assert '<optgroup label="Enlaces">' in page and ">Enlace creado<" in page
     assert '<span class="muted">modo</span> abierto' in page and "link_id" not in page
+
+
+def test_not_found_uses_panel_page_only_for_allowed_users(panel: TestClient) -> None:
+    missing = panel.get("/links/999999")
+    assert missing.status_code == 404 and "Esta página no existe" in missing.text
+    stranger = panel.get("/links/999999", headers={"X-Authentik-Username": "otra"})
+    assert stranger.status_code == 403 and "Biblioteca" not in stranger.text

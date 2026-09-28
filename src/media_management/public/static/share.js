@@ -194,29 +194,30 @@ function showFiles(data) {
   document.title = data.title;
   const count = data.files.length;
   const total = data.files.reduce((sum, f) => sum + f.size, 0);
-  const rows = data.files.map(fileRow);
+  const single = count === 1;
+  const rows = data.files.map((f) => fileRow(f, single, data.title));
   const head = el("header", { class: "share-head" },
-    el("p", { class: "eyebrow" }, "Archivos compartidos contigo"),
+    el("p", { class: "eyebrow" }, data.sender ? `${data.sender} te ha compartido ${single ? "este archivo" : "estos archivos"}` : `${single ? "Archivo compartido" : "Archivos compartidos"} contigo`),
     el("h1", {}, data.title),
     el("ul", { class: "meta" },
-      el("li", {}, `${count} archivo${count === 1 ? "" : "s"} · ${formatSize(total)}`),
+      single ? null : el("li", {}, `${count} archivos · ${formatSize(total)}`),
       el("li", {}, icon("clock", 16), `Disponible hasta el ${formatDate(data.expires_at)}`)));
   const body = count === 0
     ? el("p", { class: "muted" }, "Este enlace ya no tiene archivos disponibles.")
-    : el("ul", { class: count === 1 ? "files single" : "files", "aria-label": "Archivos" }, ...rows.map((r) => r.node));
+    : el("ul", { class: single ? "files single" : "files", "aria-label": "Archivos" }, ...rows.map((r) => r.node));
   screen({ wide: true }, head,
-    count > 1 ? downloadAll(rows, data.zip) : null,
+    ...(count > 1 ? downloadAll(rows, data.zip) : []),
     body,
     count ? el("p", { class: "foot" }, "Si una descarga se corta, puedes reanudarla desde el navegador durante unas horas.") : null);
 }
 
-function fileRow(file) {
+function fileRow(file, single, title) {
   const status = el("p", { class: "status", role: "status" });
-  const button = el("button", { class: "primary", type: "button", "aria-label": `Descargar ${file.name}` },
+  const button = el("button", { class: single ? "primary" : "soft", type: "button", "aria-label": `Descargar ${file.name}` },
     icon("download"), el("span", { class: "label" }, "Descargar"));
   const row = { file, button, status };
   row.node = el("li", { class: "file" }, thumbFor(row),
-    el("div", {}, el("div", { class: "name" }, file.name),
+    el("div", {}, single && file.name.normalize() === title.normalize() ? null : el("div", { class: "name", title: file.name }, file.name),
       el("div", { class: "info" }, `${KINDS[file.kind] || "Archivo"} · ${formatSize(file.size)}`), status),
     button);
   button.addEventListener("click", () => download(row));
@@ -226,7 +227,7 @@ function fileRow(file) {
 function downloadAll(rows, zip) {
   const status = el("p", { class: "status", role: "status" });
   const zipSlot = el("div", { class: "zip-slot" });
-  const separate = el("button", { type: "button", class: zip ? "link" : "primary big" }, zip ? "Descargar uno a uno" : "Descargar todos");
+  const separate = el("button", { type: "button", class: zip ? "link" : "primary big" }, zip ? "Descargarlos uno a uno" : "Descargar todos");
   separate.addEventListener("click", async () => {
     separate.disabled = true;
     status.className = "status";
@@ -240,9 +241,10 @@ function downloadAll(rows, zip) {
     }
     separate.disabled = false;
   });
-  const box = el("div", { class: "all" }, zipSlot, separate, status);
   showZip(zipSlot, zip, status);
-  return box;
+  if (!zip) return [el("div", { class: "all" }, zipSlot, separate, status)];
+  return [el("div", { class: "all" }, zipSlot, status),
+    el("p", { class: "alt small muted separate" }, "¿Prefieres los archivos sueltos? ", separate)];
 }
 
 // Cada comprobación vuelve a validar la credencial (argon2 en los enlaces con
@@ -255,18 +257,20 @@ function showZip(slot, zip, status, attempt = 0) {
   slot.hidden = false;
   if (zip && zip.state === "ready") {
     const button = el("button", { class: "primary big", type: "button" }, icon("download"),
-      el("span", { class: "nowrap" }, "Descargar todo"), el("span", { class: "sub" }, `ZIP · ${formatSize(zip.size)}`));
+      el("span", { class: "nowrap" }, "Descargar todo"), el("span", { class: "sub" }, "en un solo archivo"));
     button.addEventListener("click", () => downloadZip(button, status));
     slot.replaceChildren(button);
   } else if (zip && zip.state === "pending" && attempt < ZIP_POLL_ATTEMPTS) {
     slot.replaceChildren(el("button", { type: "button", class: "primary big", disabled: "" },
-      el("span", { class: "spinner sm", "aria-hidden": "true" }), "Preparando el ZIP…"));
+      el("span", { class: "spinner sm", "aria-hidden": "true" }), "Preparando la descarga de todo…"));
     const delay = Math.min(ZIP_POLL_FIRST_MS * 2 ** attempt, ZIP_POLL_MAX_MS);
     setTimeout(() => refreshZip(slot, status, attempt + 1), delay);
   } else if (zip && zip.state === "pending") {
-    const check = el("button", { type: "button", class: "big" }, "El ZIP aún se prepara · comprobar");
+    const check = el("button", { type: "button", class: "big" }, "Aún se está preparando · comprobar");
     check.addEventListener("click", () => { check.disabled = true; refreshZip(slot, status, 0); });
     slot.replaceChildren(check);
+  } else if (zip === null && slot.closest(".all")?.nextElementSibling?.classList.contains("separate")) {
+    slot.replaceChildren(el("p", { class: "muted" }, "El archivo con todo no está disponible. Descárgalos uno a uno."));
   } else {
     slot.replaceChildren();
     slot.hidden = true;
@@ -302,12 +306,12 @@ async function downloadZip(button, status) {
   button.disabled = false;
   if (code === 200 && data.url) {
     status.className = "status ok";
-    status.textContent = "Descarga del ZIP iniciada. Mira la barra o la carpeta de descargas de tu navegador.";
+    status.textContent = "Descarga iniciada: un solo archivo .zip con todo. Mira la barra o la carpeta de descargas de tu navegador.";
     startDownload(data.url);
     return;
   }
   if (code === 401 || code === 202) return openLink();
-  report(status, code, "El ZIP");
+  report(status, code, "La descarga de todo");
 }
 
 async function download(row) {

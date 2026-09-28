@@ -5,16 +5,17 @@
 <div class="banner bad"><strong>La biblioteca no está disponible.</strong> {{ media_problem }}. No se escanea, no se sirve ni se mueve nada hasta que vuelva.</div>
 {% endif %}
 
+<h1 class="sr-only">Inicio</h1>
 <form class="hero-search" method="get" action="/library" role="search">
   <div class="search">
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M10 4a6 6 0 1 0 3.7 10.7l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
-    <input type="search" name="q" aria-label="Buscar en toda la Biblioteca" placeholder="Buscar en toda la Biblioteca por nombre" data-search autocomplete="off">
+    <input type="search" name="q" aria-label="Buscar en toda la Biblioteca" placeholder="Buscar ficheros" data-search autocomplete="off">
     <kbd>/</kbd>
   </div>
   <button class="primary">Buscar</button>
 </form>
 
-<section class="stats" aria-label="Resumen">
+<section class="stats" aria-label="Pendiente">
   <a class="stat{% if pending %} attention{% endif %}" href="/requests">
     <div class="label">Solicitudes pendientes</div>
     <div class="value">{{ pending }}</div>
@@ -25,6 +26,10 @@
     <div class="value">{{ active_links }}</div>
     <div class="sub">Ver descargas y caducidades</div>
   </a>
+</section>
+
+<h2 class="section-title">Raíces</h2>
+<section class="stats roots" aria-label="Raíces">
   {% for name, root in roots.items() %}
   <a class="stat" href="/library?root={{ name|urlencode }}">
     <div class="label">{{ name }}</div>

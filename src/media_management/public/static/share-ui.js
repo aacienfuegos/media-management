@@ -59,7 +59,8 @@ function badge(name, kind = "") {
 
 function message(iconName, title, text, ...extra) {
   document.title = title;
-  screen({ center: true }, badge(iconName, "b-error"), el("h1", {}, title), el("p", { class: "muted" }, text), ...extra);
+  const kind = iconName === "alert" ? "b-error" : iconName === "link" ? "b-neutral" : "b-wait";
+  screen({ center: true }, badge(iconName, kind), el("h1", {}, title), el("p", { class: "muted" }, text), ...extra);
 }
 
 function loading(text = "Cargando…") {
@@ -75,7 +76,7 @@ function formatSize(bytes) {
     size /= 1024;
     unit++;
   }
-  return (unit === 0 ? String(size) : size.toFixed(1).replace(".", ",")) + " " + units[unit];
+  return (unit === 0 ? String(size) : size.toFixed(1).replace(".", ",")) + "\u00a0" + units[unit];
 }
 
 function formatDate(iso) {

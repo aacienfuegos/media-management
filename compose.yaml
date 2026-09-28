@@ -78,6 +78,7 @@ services:
       # El público solo cree la X-Real-IP que pone nginx, y solo si viene de su IP.
       MM_TRUSTED_NGINX: '["${SHARE_NGINX_IP:-172.31.250.10}/32"]'
       MM_TICKET_KEY: ${MM_TICKET_KEY:?}
+      MM_SHARE_SENDER: ${MM_SHARE_SENDER:-}
       MM_NTFY_URL: ${MM_NTFY_URL:-}
       MM_NTFY_TOPIC: ${MM_NTFY_TOPIC:-}
       MM_NTFY_TOKEN: ${MM_NTFY_TOKEN:-}

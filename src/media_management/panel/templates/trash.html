@@ -6,7 +6,7 @@
 <p class="hint">Lo borrado se mueve aquí, fuera de la biblioteca y en el mismo disco. La app nunca borra: el host vacía la papelera a los 30 días.</p>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Fichero</th><th class="opt-sm">Raíz</th><th class="num opt">Tamaño</th><th class="opt">Borrado</th><th>Estado</th><th class="cell-actions"><span class="sr-only">Acciones</span></th></tr></thead>
+  {% if entries %}<thead><tr><th>Fichero</th><th class="opt-sm">Raíz</th><th class="num opt">Tamaño</th><th class="opt">Borrado</th><th>Estado</th><th class="cell-actions"><span class="sr-only">Acciones</span></th></tr></thead>{% endif %}
   <tbody>
   {% for e in entries %}
   <tr>
