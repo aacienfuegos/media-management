@@ -7,6 +7,7 @@
 <meta name="color-scheme" content="light dark">
 <title>{% block title %}Media{% endblock %} · media</title>
 <link rel="stylesheet" href="/static/panel.css">
+<script src="/static/theme.js"></script>
 <script src="/static/panel.js" defer></script>
 </head>
 <body>
@@ -28,6 +29,11 @@
       {{ tab('/tokens', 'Tokens API') }}
       {{ tab('/audit', 'Registro') }}
       <button type="button" class="linklike js-only" data-open="shortcuts">Atajos de teclado <kbd>?</kbd></button>
+      <div class="theme js-only" role="group" aria-label="Tema">
+        <button type="button" data-theme-choice="system">Sistema</button>
+        <button type="button" data-theme-choice="light">Claro</button>
+        <button type="button" data-theme-choice="dark">Oscuro</button>
+      </div>
       <span class="who">Sesión: {{ user }}</span>
     </nav>
   </details>
