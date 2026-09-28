@@ -21,22 +21,36 @@ Los tres puertos publicados **solo** desde Traefik, más Uptime Kuma para los `h
 conexión viene de una IP de `MM_TRUSTED_PROXIES`: que Kuma llegue al puerto no le da
 acceso a nada más que a `/healthz`.
 
-> Comprueba que Docker conserva la IP de origen en los puertos publicados (con el
-> proxy de espacio de usuario, la IP que ve el contenedor es la de la pasarela de
-> Docker). Tras el alta: una petición al panel desde fuera de Traefik tiene que dar
-> 403, y el registro del panel tiene que mostrar la IP real del cliente.
+Son dos controles distintos y cada uno tiene su prueba en "Comprobaciones tras el
+alta": el cortafuegos (`DOCKER-USER`) decide quién llega al puerto, y la app decide de
+quién se fía.
 
 ## Lista para el alta
 
 ### LXC
 
 - LXC **sin privilegios** con Docker (`nesting=1`, `keyctl=1`).
+- `/etc/docker/daemon.json` en el LXC:
+
+  ```json
+  {"userland-proxy": false,
+   "log-driver": "json-file", "log-opts": {"max-size": "20m", "max-file": "5"}}
+  ```
+
+  - Sin `userland-proxy: false`, el contenedor ve como origen la pasarela de Docker y
+    no la IP real: el panel rechaza a Traefik y los registros mienten.
+  - Sin rotación, el JSON a stdout de cinco contenedores acaba llenando el disco.
 - Bind mounts:
   - Directorio de media del host → en el LXC, **lectura-escritura** y **`optional`**.
     Si el disco cifrado no está desbloqueado, el LXC arranca igual y la app se niega a
-    operar (ver centinela).
-  - Directorio del manifiesto que lee TripPlanner → **lectura-escritura**. La app
-    escribe ahí `buceo.candidate.json` (y, tras el traspaso, `buceo.json`).
+    operar (ver centinela). En Proxmox, `mpX` no admite `optional`: va como
+    `lxc.mount.entry: /ruta/a/media ruta/en/lxc none bind,optional,create=dir` en
+    `/etc/pve/lxc/<ctid>.conf`. Si el disco se monta **después** de arrancar el LXC, el
+    LXC no lo ve hasta reiniciarlo (el centinela lo detecta y `healthz` lo dice).
+  - Durante el traspaso del manifiesto, dos:
+    - un directorio **propio** para el candidato → **lectura-escritura** (`MANIFEST_DIR`);
+    - el directorio que lee TripPlanner → **solo lectura** (`MANIFEST_CURRENT_DIR`).
+    Tras el traspaso, solo el de TripPlanner, y pasa a **lectura-escritura**.
   - Directorio del export de IDs de Jellyfin → **solo lectura**.
 - Salidas: al `8096` de Jellyfin (miniaturas y `healthz`) y a ntfy (URL interna).
 
@@ -60,23 +74,88 @@ manifiesto, no sirve descargas y no mueve nada. `healthz` lo dice.
 
 ### Permisos (UID/GID)
 
-La app necesita poder **renombrar** dentro de las raíces borrables o renombrables
-(`rename` necesita escritura en el directorio, no en el fichero) y crear carpetas en
-la papelera. No necesita escribir en los ficheros.
+La app necesita **renombrar** (mover a la papelera también es un `rename`) solo en las
+raíces que la versión actual puede tocar, y crear carpetas en la papelera. `rename`
+necesita escritura en el directorio, no en el fichero: nunca escribe en los ficheros.
 
-Recomendado: el proceso con un UID propio (`APP_UID`) y como grupo el de los ficheros
-de la biblioteca (`APP_GID`, el GID del usuario de Jellyfin tal como se ve en el LXC).
-Luego, en el host:
+- **`APP_UID`: propio y único en todo el nodo.** Todos los LXC sin privilegios
+  comparten el mismo mapeo de UIDs al host, así que el mismo UID en otro LXC es el
+  mismo dueño en disco. No usar el `10001` de la imagen.
+- **`APP_GID`**: el grupo de los ficheros de la biblioteca tal como se ve en el LXC.
+
+Escritura (grupo + `2775`) **solo** en las raíces en las que se puede borrar o
+renombrar algo hoy y en `.trash`. Las raíces con `synced` o `requires_second_copy` no
+se tocan: en ellas no se renombra, y no se borra nada hasta que exista el inventario de
+la segunda copia (`panel/policy.py`). Mínimo privilegio; el día que haga falta se abre
+con su motivo. En el host, con el GID tal como se ve fuera del LXC:
 
 ```sh
-chmod 2775 /ruta/a/media/buceo /ruta/a/media/originales-120fps /ruta/a/media/send
+chgrp <gid-host> /ruta/a/media/send && chmod 2775 /ruta/a/media/send
 mkdir -p /ruta/a/media/.trash && chgrp <gid-host> /ruta/a/media/.trash && chmod 2775 /ruta/a/media/.trash
 ```
 
+`chmod` sin `chgrp` no vale: si la raíz es de otro grupo, da escritura a quien no toca
+y no a la app.
+
 Además:
+- nginx (`nginx-unprivileged`, sin root, sistema de ficheros de solo lectura) lee los
+  ficheros que sirve como UID/GID 101: tienen que ser legibles por "otros" o por ese
+  GID. Es el mismo usuario que ya usaban los workers de la imagen oficial.
 - `DATA_DIR/{main,public,cache}` propiedad de `APP_UID:APP_GID`.
-- El directorio del manifiesto, con escritura para `APP_GID`. Los ficheros se escriben
+- `MANIFEST_DIR`, con escritura para `APP_GID`. Los ficheros se escriben
   con `0644`.
+
+### Ancho de banda
+
+nginx limita cada descarga (`DOWNLOAD_RATE`, 12 MB/s por defecto) y el número de
+descargas simultáneas por IP (`DOWNLOAD_CONN_PER_IP`), pero no tiene un tope global
+razonable: varios clientes a la vez suman. **El tope global es requisito del alta** y
+va en el límite de velocidad de la interfaz del LXC: la mitad o algo más de la subida
+medida, para que el resto de la casa y el resto de servicios publicados sigan
+funcionando. `DOWNLOAD_RATE` se elige para que dos descargas a la vez quepan bajo ese
+tope.
+
+### Cortafuegos (`DOCKER-USER`)
+
+Los puertos publicados por Docker pasan por `FORWARD` después del DNAT: una regla en
+`INPUT` no los ve, y el control sale en verde sin filtrar nada. Van en `DOCKER-USER`,
+casando por el puerto **original** (`--ctorigdstport`; `--dport` ya es el del
+contenedor). Dos cosas:
+
+1. Los puertos `8002`, `8003` y `8080`, solo desde Traefik y el monitor.
+2. La red `share` (proceso público y nginx, lo único expuesto a internet) solo puede
+   **iniciar** conexiones hacia ntfy, que es lo único a lo que sale el proceso público
+   (las miniaturas las copia el panel al crear el enlace). Sin esta regla, un proceso
+   público comprometido llega al endpoint de streaming de Jellyfin, que no pide
+   autenticación, y al resto de la red.
+
+Ejemplo con IPs de documentación (Traefik `192.0.2.10`, monitor `192.0.2.11`, ntfy
+`192.0.2.12:8080`). La subred es `SHARE_SUBNET`: si se cambia en el `.env`, hay que
+cambiarla aquí, o la salida queda abierta o nginx deja de llegar al público.
+
+```sh
+#!/bin/sh
+set -eu
+iptables -F DOCKER-USER
+iptables -A DOCKER-USER -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+# Dentro de la propia red share (nginx → público).
+iptables -A DOCKER-USER -s 172.31.250.0/24 -d 172.31.250.0/24 -j RETURN
+iptables -A DOCKER-USER -s 172.31.250.0/24 -d 192.0.2.12 -p tcp --dport 8080 -j RETURN
+iptables -A DOCKER-USER -s 172.31.250.0/24 -j DROP
+for port in 8002 8003 8080; do
+  for src in 192.0.2.10 192.0.2.11; do
+    iptables -A DOCKER-USER -p tcp -s "$src" -m conntrack --ctorigdstport "$port" -j RETURN
+  done
+  iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP
+done
+iptables -A DOCKER-USER -j RETURN
+```
+
+Es solo IPv4. Si el LXC o Docker tienen IPv6, la cadena de `ip6tables` está vacía y
+nada de esto filtra: o se desactiva IPv6 en el LXC (y no se activa `enable_ipv6` en
+Docker), o se replican las reglas en `ip6tables`. Tiene que sobrevivir a reinicios de Docker, que puede vaciar `DOCKER-USER`: como unidad
+`oneshot` con `After=docker.service`, `PartOf=docker.service` y
+`WantedBy=docker.service`.
 
 ### Traefik
 
@@ -91,6 +170,8 @@ Tres routers (ver `traefik/media.example.yml`):
 
 Una aplicación/proveedor de forward-auth para el host del panel. La app además
 comprueba el usuario contra `MM_PANEL_ALLOWED_USERS`: con la lista vacía no entra nadie.
+Lo que se compara es el **`username` de Authentik** (la cabecera
+`X-authentik-username`), no el nombre visible ni el correo.
 
 ### Jellyfin
 
@@ -118,7 +199,12 @@ ausente, vacío o de más de una hora (`MM_JELLYFIN_IDS_MAX_AGE_S`).
 ### Papelera (host)
 
 `host/media-trash-purge.sh` + `host/media-trash-purge.{service,timer}`, configurado en
-`/etc/default/media-trash-purge`. Borra `.trash/<raíz>/<AAAA-MM-DD>/` con más de 30
+`/etc/default/media-trash-purge` **y** en el drop-in
+`/etc/systemd/system/media-trash-purge.service.d/paths.conf` (plantilla en
+`host/media-trash-purge.service.d/paths.conf.example`). El drop-in lleva las rutas que
+systemd no puede leer del entorno (`RequiresMountsFor`, `ReadWritePaths` y el centinela
+en `ConditionPathExists`); sin él la unidad falla a propósito. Con el disco cifrado sin
+montar, el servicio se salta limpio. Borra `.trash/<raíz>/<AAAA-MM-DD>/` con más de 30
 días, nunca sigue symlinks y se niega si `TRASH_DIR` no termina en `/.trash` o no
 existe. Probar primero con `-n`. La app solo mueve ficheros: nunca borra.
 
@@ -155,7 +241,17 @@ Uptime Kuma, directo al backend:
 
 Todos los procesos escriben JSON a stdout. Las acciones que cambian estado van con
 `action`, `result`, `ip` y, cuando hay un token de por medio, solo su hash truncado.
-nginx escribe su access log en JSON. Recoger los logs de los contenedores (driver
+nginx escribe su access log en JSON. El ticket de descarga va en la ruta (`/download/<ticket>`) y basta
+para descargar ese fichero durante horas, así que no se registra: nginx lo sustituye
+por `<ticket>` (también en `/Download/...` y demás variantes), su error log solo
+escribe errores críticos porque lleva la línea de petición sin tapar, y el proceso
+público no tiene access log propio.
+
+**Riesgo aceptado:** el access log de Traefik sí lo ve. No se recorta porque CrowdSec
+necesita la ruta. Aguanta porque el ticket no da más que el enlace del que sale, cada
+petición vuelve a comprobar que el enlace y la concesión siguen vivos (revocar lo
+mata) y esos logs solo los lee administración. El ticket no se liga a la IP a
+propósito: rompería reanudar en el móvil al pasar de wifi a datos. Recoger los logs de los contenedores (driver
 `journald` o los ficheros de Docker).
 
 ### Copias de seguridad
@@ -168,6 +264,18 @@ sqlite3 DATA_DIR/main/main.db ".backup /destino/main.db"
 sqlite3 DATA_DIR/public/public.db ".backup /destino/public.db"
 ```
 
+## Actualizar
+
+Las dos imágenes (`IMAGE` y `NGINX_IMAGE`) van por digest y el compose no arranca sin
+ellas: un tag olvidado no puede convertirse en un despliegue que nadie ha decidido.
+Se suben a mano:
+- la app, con el digest que publica la Action al fusionar en `main`;
+- nginx, cuando haya una versión de parche o un aviso de seguridad de la rama estable:
+  `docker pull` del tag, `docker image inspect --format '{{index .RepoDigests 0}}'` y ese
+  valor en `NGINX_IMAGE`.
+
+Luego `docker compose pull && docker compose up -d`.
+
 ## Traspaso del manifiesto
 
 TripPlanner prod lee `buceo.json`. Hoy lo escribe el generador del host; la app lo
@@ -177,21 +285,34 @@ sustituye así, sin saltarse pasos y sin dos escritores sobre el mismo fichero:
    igual.
    *Para seguir:* el export se renueva cada 15 min y `healthz` dice
    `jellyfin_ids_export.ok: true`.
-2. **La app escribe el candidato**: `MANIFEST_FILE=buceo.candidate.json` (valor por
-   defecto). Nunca `buceo.json` en este paso.
+2. **La app escribe el candidato** en un directorio propio: `MANIFEST_DIR` es ese
+   directorio, `MANIFEST_FILE=buceo.candidate.json` (valor por defecto), y el directorio
+   de TripPlanner (`MANIFEST_CURRENT_DIR`) se monta en solo lectura con
+   `compose.compare.yaml`:
+   `docker compose -f compose.yaml -f compose.compare.yaml up -d`. Así la app no puede
+   escribir `buceo.json` aunque haya una errata; si los dos directorios resultan ser el
+   mismo, el worker no escribe nada y el panel dice por qué.
    *Para seguir:* el panel muestra el manifiesto como escrito, con el mismo número de
    clips que el actual.
-3. **Comparar varios días**, incluido al menos un alta de clips nuevos:
-   `MM_MANIFEST_COMPARE_WITH=/manifest/buceo.json` en el worker. El panel
+3. **Comparar varios días**, incluido al menos un alta de clips nuevos. Con
+   `compose.compare.yaml` el worker compara cada candidato con
+   `/manifest-current/buceo.json` (`MANIFEST_CURRENT_FILE` si se llama distinto). El panel
    (Manifiesto → comparación) enseña las diferencias clip a clip: identidad,
    `jellyfin_item_id`, `captured_at_utc`, `size_bytes`. También a mano:
    `media-management compare buceo.candidate.json buceo.json`.
    *Para seguir:* cero diferencias que se repitan en dos comparaciones seguidas. Una
    diferencia que aparece en una pasada y desaparece en la siguiente es de timing
    (los dos generadores no corren a la vez).
-4. **Cambio de escritor**, en este orden: desactivar el timer del generador viejo, y
-   luego `MANIFEST_FILE=buceo.json` y quitar `MM_MANIFEST_COMPARE_WITH`. Es
-   configuración, no código.
+4. **Cambio de escritor**, en este orden:
+   1. desactivar el timer del generador viejo;
+   2. en el LXC, el directorio de TripPlanner pasa de solo lectura a
+      **lectura-escritura**;
+   3. `MANIFEST_DIR` = ese directorio, `MANIFEST_FILE=buceo.json`, vaciar
+      `MANIFEST_CURRENT_DIR` y levantar **sin** `compose.compare.yaml`
+      (`docker compose up -d`).
+
+   Es configuración, no código. Cambia qué directorio se monta, no solo el nombre del
+   fichero.
    *Para comprobar:* `generated_at` de `buceo.json` avanza con el escaneo de la app
    y TripPlanner sigue viendo sus miniaturas.
 
@@ -200,11 +321,30 @@ demuestre lo contrario.
 
 ## Comprobaciones tras el alta
 
-- El token de un enlace **no** aparece en ningún log (Traefik, nginx, contenedores):
-  `grep -r <token>` tiene que dar vacío tras abrir el enlace y descargar.
-- La IP que registra el panel en una descarga es la del cliente, no la de Traefik ni
-  la de nginx.
-- Desde fuera de Traefik, `curl -H 'X-authentik-username: <usuario>' http://<lxc>:8002/`
-  da 403; contra la API da 401.
+Cada comprobación negativa va con su pareja positiva: un "no aparece" o un "no
+responde" solo vale si en el mismo sitio sí aparece o sí responde lo legítimo. Si no,
+la forma más barata de aprobar es mirar el fichero equivocado o romper el servicio.
+
+- **Logs sin secretos.** Tras abrir un enlace, descargar un fichero entero y reanudar
+  otro, en los logs de nginx y de los contenedores (`docker compose logs`):
+  - `grep <token>` y `grep <ticket>` dan vacío (el ticket es el último segmento de la
+    URL `/download/...` que pide el navegador);
+  - `grep /download/` y `grep /_protected/` **sí** encuentran esas descargas.
+
+  En el access log de Traefik el ticket sí aparece (riesgo aceptado, ver "Registros").
+- **IP real.** La IP que registra el panel en una descarga es la del cliente, no la de
+  Traefik, la de nginx ni la pasarela de Docker.
+- **Control de la app**, desde el propio LXC y por su IP (no `localhost`, que no pasa
+  por la misma ruta):
+  - `curl -H 'X-authentik-username: <usuario>' http://<ip-lxc>:8002/` → `403`;
+  - lo mismo contra `:8003/api/v1/roots` → `401`.
+- **Cortafuegos**, desde otra máquina de la red que no sea Traefik ni el monitor: los
+  puertos `8002`, `8003` y `8080` no responden, ni por IPv4 ni por IPv6 (o el LXC no
+  tiene dirección IPv6).
+- **La pareja legítima de las dos anteriores:** el panel por su nombre, a través de
+  Traefik y Authentik, funciona; los tres `healthz` del monitor siguen en verde; y un
+  enlace abierto desde fuera de la LAN descarga.
+- **Salida de `share` cerrada**: desde el contenedor `public`, una conexión al `8096`
+  de Jellyfin falla; una solicitud de acceso sí llega a ntfy.
 - Abrir el enlace en WhatsApp o Telegram (previsualización) no genera ningún ticket en
   la ficha del enlace.

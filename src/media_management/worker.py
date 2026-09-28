@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,7 @@ import aiosqlite
 
 from media_management.catalog import RootScan, scan_root
 from media_management.db import get_state, init_main, now_iso, open_persistent, set_state
-from media_management.jellyfin import Jellyfin, id_mismatches, load_ids_export
+from media_management.jellyfin import Jellyfin, id_mismatches, library_prefixes, load_ids_export
 from media_management.logs import audit
 from media_management.manifest import build_manifest, compare, serialize, write_atomic
 from media_management.roots import Root, load_roots, media_problem
@@ -39,6 +40,9 @@ async def write_manifest(conn: aiosqlite.Connection, settings: Settings, roots: 
         status["problem"] = export_problem or "sin IDs de Jellyfin"
     elif not top_level:
         status["problem"] = f"ni un fichero en {root.name}"
+    elif writes_next_to_current(settings):
+        status["problem"] = ("el candidato se escribiría en el mismo directorio que el manifiesto "
+                             "con el que se compara: monta el actual aparte y en solo lectura")
     else:
         result = build_manifest(top_level, root.jellyfin_path, ids)
         text = serialize(result.doc)
@@ -56,6 +60,17 @@ async def write_manifest(conn: aiosqlite.Connection, settings: Settings, roots: 
         if settings.manifest_compare_with is not None:
             await compare_with_current(conn, settings.manifest_compare_with, result.doc)
     await set_state(conn, "manifest_status", json.dumps(status))
+
+
+def writes_next_to_current(settings: Settings) -> bool:
+    """Durante el traspaso, el manifiesto que lee producción no puede estar en el
+    directorio en el que escribe la app: una errata en el nombre lo sobrescribiría."""
+    if settings.manifest_path is None or settings.manifest_compare_with is None:
+        return False
+    try:
+        return os.path.samefile(settings.manifest_path.parent, settings.manifest_compare_with.parent)
+    except OSError:
+        return False
 
 
 async def compare_with_current(conn: aiosqlite.Connection, current_path: Path,
@@ -106,7 +121,8 @@ async def run_cycle(conn: aiosqlite.Connection, settings: Settings, roots: dict[
         log.error("media no disponible: no se escanea", extra={"fields": {"problem": problem}})
         return
     await conn.execute("DELETE FROM state WHERE key = 'media_problem'")
-    export = load_ids_export(settings.jellyfin_ids_file, settings.jellyfin_ids_max_age_s)
+    export = load_ids_export(settings.jellyfin_ids_file, settings.jellyfin_ids_max_age_s,
+                             library_prefixes(roots))
     started = now_iso()
     scans: dict[str, RootScan] = {}
     for root in roots.values():

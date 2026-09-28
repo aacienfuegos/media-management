@@ -3,7 +3,7 @@ from typing import Any
 import aiosqlite
 
 from media_management.db import get_state, parse_iso, utcnow
-from media_management.jellyfin import Jellyfin, load_ids_export
+from media_management.jellyfin import Jellyfin, library_prefixes, load_ids_export
 from media_management.roots import Root, media_problem
 from media_management.settings import Settings
 
@@ -12,7 +12,8 @@ async def health_detail(settings: Settings, roots: dict[str, Root],
                         conn: aiosqlite.Connection) -> tuple[bool, dict[str, Any]]:
     """Estado real de lo que el servicio necesita, no solo que el proceso vive."""
     media = media_problem(settings, roots)
-    export = load_ids_export(settings.jellyfin_ids_file, settings.jellyfin_ids_max_age_s)
+    export = load_ids_export(settings.jellyfin_ids_file, settings.jellyfin_ids_max_age_s,
+                             library_prefixes(roots))
     jellyfin_ok = await Jellyfin(settings.jellyfin_url, settings.jellyfin_timeout_s).ping()
     beat = await get_state(conn, "worker_heartbeat")
     beat_age = None if beat is None else int((utcnow() - parse_iso(beat)).total_seconds())

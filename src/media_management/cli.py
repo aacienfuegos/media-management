@@ -20,8 +20,11 @@ def serve(process: str, host: str, port: int | None) -> None:
     target, default_port = PROCESSES[process]
     # Sin proxy_headers: la IP del cliente es la del socket, y cada proceso decide por
     # su cuenta de quién se fía (Traefik para el panel, nginx para el público).
+    # El público no tiene access log propio: el ticket va en la ruta, y nginx ya
+    # registra cada petición con la IP real y el ticket tapado.
     uvicorn.run(target, factory=True, host=host, port=port or default_port,
-                proxy_headers=False, server_header=False, log_config=None)
+                proxy_headers=False, server_header=False, log_config=None,
+                access_log=process != "public")
 
 
 def compare_cmd(candidate: Path, current: Path) -> int:

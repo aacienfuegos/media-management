@@ -1,15 +1,13 @@
 import logging
 import os
-import re
 from pathlib import Path
 
 import aiosqlite
 
-from media_management.jellyfin import Jellyfin, JellyfinError
+from media_management.jellyfin import ITEM_ID, Jellyfin, JellyfinError
 from media_management.roots import Root
 
 log = logging.getLogger(__name__)
-ITEM_ID = re.compile(r"^[0-9a-f]{32}$")
 
 
 async def thumb_item_id(conn: aiosqlite.Connection, roots: dict[str, Root],

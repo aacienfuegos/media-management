@@ -90,7 +90,8 @@ def identity(request: Request) -> str:
         raise HTTPException(403, "origen no permitido")
     user = request.headers.get("x-authentik-username", "")
     if not user or user not in settings.panel_allowed_users:
-        raise HTTPException(403, "usuario no permitido")
+        raise HTTPException(403, f"el usuario de Authentik «{user}» no está en MM_PANEL_ALLOWED_USERS, "
+                                 "que compara el username, no el nombre visible ni el correo")
     return user
 
 

@@ -1,6 +1,8 @@
 import hashlib
 import json
 import logging
+import re
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,9 +11,10 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from media_management.db import parse_iso, utcnow
-from media_management.roots import kind_of
+from media_management.roots import Root, kind_of
 
 log = logging.getLogger(__name__)
+ITEM_ID = re.compile(r"^[0-9a-f]{32}$")
 
 ENTITY_TYPE = {"video": "MediaBrowser.Controller.Entities.Video",
                "photo": "MediaBrowser.Controller.Entities.Photo"}
@@ -29,10 +32,25 @@ class ExportStatus:
     age_s: int | None
 
 
-def load_ids_export(path: Path | None, max_age_s: int) -> ExportStatus:
+def library_prefixes(roots: dict[str, Root]) -> list[str]:
+    return [r.jellyfin_path.rstrip("/") + "/" for r in roots.values()
+            if r.indexed_by_jellyfin and r.jellyfin_path]
+
+
+def valid_export_path(path: str, prefixes: list[str]) -> bool:
+    return (any(path.startswith(p) for p in prefixes) and ".." not in path.split("/")
+            and not any(unicodedata.category(c) == "Cc" for c in path))
+
+
+def load_ids_export(path: Path | None, max_age_s: int, prefixes: list[str]) -> ExportStatus:
     """Pares ruta→id que Jellyfin tiene indexados, o el motivo por el que no se pueden
     usar. Un export ausente, vacío o viejo no vale: convertiría en `null` ("aún no
-    indexado") clips que sí lo están."""
+    indexado") clips que sí lo están.
+
+    El export sale de la BD del contenedor de Jellyfin, que está expuesto a internet, y
+    sus IDs acaban en el manifiesto que leen otras apps. Una sola fila con formato
+    inválido invalida el export entero: quien puede escribir una fila puede escribir
+    cualquiera de las demás."""
     if path is None:
         return ExportStatus(None, "no hay export de IDs configurado", None)
     try:
@@ -47,7 +65,13 @@ def load_ids_export(path: Path | None, max_age_s: int) -> ExportStatus:
         return ExportStatus(None, "el export de IDs está vacío", age)
     if age > max_age_s:
         return ExportStatus(None, f"el export de IDs tiene {age // 60} min (máximo {max_age_s // 60})", age)
-    return ExportStatus({p: i.replace("-", "").lower() for p, i in doc.items.items()}, None, age)
+    ids = {p: i.replace("-", "").lower() for p, i in doc.items.items()}
+    bad_ids = sum(1 for i in ids.values() if not ITEM_ID.match(i))
+    bad_paths = sum(1 for p in ids if not valid_export_path(p, prefixes))
+    if bad_ids or bad_paths:
+        return ExportStatus(None, f"export de IDs no válido: {bad_ids} IDs y {bad_paths} rutas con "
+                                  "formato inválido", age)
+    return ExportStatus(ids, None, age)
 
 
 def compute_item_id(kind: str, container_path: str) -> str | None:
