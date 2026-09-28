@@ -40,15 +40,26 @@ def test_exports_only_the_library_with_normalized_ids(tmp_path: Path) -> None:
     doc = json.loads(out.read_text())
     assert doc["items"] == {"/library/buceo/A.MP4": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
                             "/library/buceo/B.JPG": "0123456789abcdef0123456789abcdef"}
-    status = load_ids_export(out, 3600)
+    status = load_ids_export(out, 3600, ["/library/buceo/"])
     assert status.problem is None and status.ids is not None and len(status.ids) == 2
 
 
 def test_failure_or_empty_keeps_previous_export(tmp_path: Path) -> None:
-    code, out = run(tmp_path, "aaaa|/library/buceo/A.MP4\n")
+    code, out = run(tmp_path, f"{'a' * 32}|/library/buceo/A.MP4\n")
     assert code == 0
     before = out.read_bytes()
     assert run(tmp_path, "", fail=True)[0] != 0
     assert out.read_bytes() == before
     assert run(tmp_path, "bbbb|/library/otra/X.MP4\n")[0] != 0
     assert out.read_bytes() == before
+
+
+def test_refuses_to_write_invalid_library_rows(tmp_path: Path) -> None:
+    good = f"{'a' * 32}|/library/buceo/A.MP4\n"
+    code, out = run(tmp_path, good)
+    assert code == 0
+    before = out.read_bytes()
+    for bad in ("../../System/Info|/library/buceo/B.MP4\n", f"{'b' * 31}|/library/buceo/B.MP4\n",
+                f"{'b' * 32}|/library/buceo/../x/B.MP4\n"):
+        assert run(tmp_path, good + bad)[0] != 0
+        assert out.read_bytes() == before

@@ -76,7 +76,8 @@ def test_manifest_matches_contract_and_rules(env: Env, panel: TestClient) -> Non
     assert status["without_id"] == 2
 
 
-@pytest.mark.parametrize("problem", ["missing", "empty", "stale", "garbage"])
+@pytest.mark.parametrize("problem", ["missing", "empty", "stale", "garbage", "traversal_id",
+                                     "short_id", "dotdot_path", "outside_path", "control_path"])
 @needs_ffmpeg
 def test_no_manifest_without_trustworthy_ids(env: Env, panel: TestClient, problem: str) -> None:
     """Si no se sabe qué tiene indexado Jellyfin, se conserva el manifiesto anterior."""
@@ -92,14 +93,22 @@ def test_no_manifest_without_trustworthy_ids(env: Env, panel: TestClient, proble
         env.write_ids({})
     elif problem == "stale":
         env.write_ids(ids, iso(utcnow() - datetime.timedelta(hours=2)))
-    else:
+    elif problem == "garbage":
         env.settings.jellyfin_ids_file.write_text("{no json")
+    else:
+        bad = {"traversal_id": {f"{JF}/X.MP4": "../../System/Info"},
+               "short_id": {f"{JF}/X.MP4": "a" * 31},
+               "dotdot_path": {f"{JF}/../peliculas/X.MP4": "a" * 32},
+               "outside_path": {"/library/peliculas/X.MP4": "a" * 32},
+               "control_path": {f"{JF}/X\nY.MP4": "a" * 32}}[problem]
+        env.write_ids({**ids, **bad})
     make_video(env.root("buceo") / "DJI_20310310140000_0006_D.MP4", "2031-03-10T13:00:00Z")
     cycle(env.settings)
     assert env.settings.manifest_path.read_bytes() == before
     status = json.loads(state(env.settings, "manifest_status") or "{}")
     assert status["written"] is False and status["problem"]
     assert status["last_written_at"]
+    assert panel.get("/healthz").json()["jellyfin_ids_export"]["ok"] is False
 
 
 @needs_ffmpeg
@@ -158,7 +167,8 @@ def test_scan_tracks_changes_and_skips_symlinks_and_hidden(env: Env, panel: Test
 
 @needs_ffmpeg
 def test_comparator_against_current_manifest(env: Env, tmp_path: Path) -> None:
-    current = tmp_path / "manifiesto" / "buceo.json"
+    current = tmp_path / "actual" / "buceo.json"
+    current.parent.mkdir()
     settings = env.settings.model_copy(update={"manifest_compare_with": current})
     ids = library(env)
     env.write_ids(ids)
@@ -179,6 +189,20 @@ def test_comparator_against_current_manifest(env: Env, tmp_path: Path) -> None:
     result = json.loads(state(settings, "manifest_comparison") or "{}")
     problems = sorted(d["problem"] for d in result["differences"])
     assert problems == ["size_bytes distinto", "solo en el candidato"]
+
+
+@needs_ffmpeg
+def test_candidate_is_not_written_next_to_the_current_manifest(env: Env, panel: TestClient,
+                                                                tmp_path: Path) -> None:
+    assert env.settings.manifest_path is not None
+    current = env.settings.manifest_path.with_name("buceo.json")
+    current.write_text("{}")
+    settings = env.settings.model_copy(update={"manifest_compare_with": current})
+    env.write_ids(library(env))
+    cycle(settings)
+    assert not env.settings.manifest_path.exists() and current.read_text() == "{}"
+    status = json.loads(state(settings, "manifest_status") or "{}")
+    assert status["written"] is False and "mismo directorio" in status["problem"]
 
 
 def test_compare_by_identity() -> None:
@@ -210,7 +234,7 @@ def test_export_normalizes_ids(tmp_path: Path) -> None:
     f = tmp_path / "ids.json"
     f.write_text(json.dumps({"generated_at": iso(utcnow()),
                              "items": {"/a.MP4": "0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9"}}))
-    assert load_ids_export(f, 3600).ids == {"/a.MP4": "0a1b2c3d4e5f60718293a4b5c6d7e8f9"}
+    assert load_ids_export(f, 3600, ["/"]).ids == {"/a.MP4": "0a1b2c3d4e5f60718293a4b5c6d7e8f9"}
 
 
 @needs_ffmpeg
