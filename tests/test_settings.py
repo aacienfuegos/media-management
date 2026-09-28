@@ -67,3 +67,10 @@ def test_compare_overlay_mounts_the_current_manifest_read_only(tmp_path: Path) -
     assert mounts["/manifest-current"]["source"] == "/prod" and mounts["/manifest-current"]["read_only"]
     assert worker["environment"]["MM_MANIFEST_COMPARE_WITH"] == "/manifest-current/buceo.json"
     assert "MM_MANIFEST_COMPARE_WITH" not in compose_config(tmp_path, "compose.yaml")["worker"]["environment"]
+
+
+@needs_docker
+def test_every_container_is_read_only_without_capabilities(tmp_path: Path) -> None:
+    for name, svc in compose_config(tmp_path, "compose.yaml").items():
+        assert svc.get("read_only") is True and svc.get("cap_drop") == ["ALL"], name
+        assert "no-new-privileges:true" in svc.get("security_opt", []), name

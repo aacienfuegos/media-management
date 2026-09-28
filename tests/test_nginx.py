@@ -22,7 +22,9 @@ from tests.helpers import create_link, link_file_ids, send_files, sql
 
 pytestmark = pytest.mark.docker
 TEMPLATE = Path(__file__).parent.parent / "deploy" / "nginx" / "share.conf.template"
-IMAGE = "nginx:1.28-alpine"
+ENV_EXAMPLE = Path(__file__).parent.parent / ".env.example"
+IMAGE = next(line.split("=", 1)[1] for line in ENV_EXAMPLE.read_text().splitlines()
+             if line.startswith("NGINX_IMAGE="))
 DOCKER_NETS = ["172.16.0.0/12", "10.0.0.0/8"]
 
 
@@ -57,6 +59,9 @@ def stack(env: Env, panel: TestClient, request: pytest.FixtureRequest) -> Iterat
     shutil.copy(TEMPLATE, templates / "default.conf.template")
     subprocess.run(
         ["docker", "run", "-d", "--rm", "--name", name, "--add-host", "host.docker.internal:host-gateway",
+         "--read-only", "--tmpfs", "/tmp:uid=101,gid=101", "--tmpfs", "/var/cache/nginx:uid=101,gid=101",
+         "--tmpfs", "/etc/nginx/conf.d:uid=101,gid=101",
+         "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
          "-p", f"127.0.0.1:{nginx_port}:8080",
          "-v", f"{templates}:/etc/nginx/templates:ro", "-v", f"{env.base}:/media:ro",
          "-e", f"TRAEFIK_IP={traefik}", "-e", f"PUBLIC_UPSTREAM=host.docker.internal:{app_port}",

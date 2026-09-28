@@ -1,4 +1,4 @@
-# Plantilla para la imagen oficial de nginx (/etc/nginx/templates/): se rellenan
+# Plantilla para nginx-unprivileged (/etc/nginx/templates/): se rellenan
 # solo las variables de entorno definidas, las $variables de nginx quedan tal cual.
 #
 #   TRAEFIK_IP             IP desde la que llega Traefik (la única de la que se cree X-Forwarded-For)

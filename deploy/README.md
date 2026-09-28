@@ -76,6 +76,9 @@ mkdir -p /ruta/a/media/.trash && chgrp <gid-host> /ruta/a/media/.trash && chmod 
 ```
 
 Además:
+- nginx (`nginx-unprivileged`, sin root, sistema de ficheros de solo lectura) lee los
+  ficheros que sirve como UID/GID 101: tienen que ser legibles por "otros" o por ese
+  GID. Es el mismo usuario que ya usaban los workers de la imagen oficial.
 - `DATA_DIR/{main,public,cache}` propiedad de `APP_UID:APP_GID`.
 - `MANIFEST_DIR`, con escritura para `APP_GID`. Los ficheros se escriben
   con `0644`.
