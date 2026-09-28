@@ -2,6 +2,7 @@
 
 const app = document.getElementById("app");
 const ICONS = {
+  mark: "M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v2h2V5H4Zm4 0v2h2V5H8Zm4 0v2h2V5h-2Zm4 0v2h2V5h-2ZM4 17v2h2v-2H4Zm4 0v2h2v-2H8Zm4 0v2h2v-2h-2Zm4 0v2h2v-2h-2ZM4 9v6h16V9H4Zm6 1.2 4.5 1.8-4.5 1.8v-3.6Z",
   download: "M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3 1.4 1.4-5.7 5.7-5.7-5.7 1.4-1.4 3.3 3.3V4a1 1 0 0 1 1-1ZM5 19h14v2H5z",
   check: "M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z",
   lock: "M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Zm3 3a2 2 0 0 1 1 3.7V19h-2v-2.3a2 2 0 0 1 1-3.7Z",
