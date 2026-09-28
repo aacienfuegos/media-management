@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 
 from media_management.db import connect
 from media_management.security import csrf_token
-from tests.conftest import SECRET, USER, Env
+from tests.conftest import CSRF_KEY, USER, Env
 from tests.test_manifest import cycle
 
-CSRF = csrf_token(SECRET, USER)
+CSRF = csrf_token(CSRF_KEY, USER)
 
 
 def sql(env: Env, query: str, params: tuple[Any, ...] = (), db: str = "main") -> list[Any]:

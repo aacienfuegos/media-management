@@ -131,7 +131,7 @@ async def require_csrf(request: Request, user: User) -> str:
         raise HTTPException(403, "petición de otro origen")
     form = await request.form()
     given = form.get("csrf")
-    if not isinstance(given, str) or not check_csrf(settings_of(request).secret_key, user, given):
+    if not isinstance(given, str) or not check_csrf(settings_of(request).csrf_key, user, given):
         raise HTTPException(403, "token CSRF inválido")
     return user
 
@@ -143,5 +143,5 @@ def render(request: Request, user: str, template: str, status_code: int = 200, *
     ctx.setdefault("roots", roots_of(request))
     return TEMPLATES.TemplateResponse(
         request, template,
-        {"user": user, "csrf": csrf_token(settings_of(request).secret_key, user), **ctx},
+        {"user": user, "csrf": csrf_token(settings_of(request).csrf_key, user), **ctx},
         status_code=status_code)

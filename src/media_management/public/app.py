@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from media_management.db import init_public, open_persistent
 from media_management.public.routes import router
 from media_management.roots import load_roots, media_problem
-from media_management.settings import Settings, get_settings
+from media_management.settings import Settings, get_settings, require_key
 from media_management.web import add_security_headers
 
 log = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ class MainReader:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    require_key(settings.ticket_key, "MM_TICKET_KEY")
     reader = MainReader(settings.main_db)
 
     @asynccontextmanager

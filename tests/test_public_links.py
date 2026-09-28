@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from media_management.public.app import MainReader, create_app
 from media_management.security import verify_ticket
-from tests.conftest import NGINX, SECRET, Env
+from tests.conftest import NGINX, TICKET_KEY, Env
 from tests.helpers import CSRF, create_link, link_file_ids, send_files, sql, ticket_url
 
 FILES = {"a.txt": b"A" * 1000, "b.txt": b"B" * 1000, "carpeta/informe ñ «final».pdf": b"%PDF" + b"x" * 500}
@@ -84,7 +84,7 @@ def test_ticket_is_bound_to_file_link_and_time(env: Env, panel: TestClient, publ
     fa, fb = link_file_ids(public, token_a)
     url = ticket_url(public, token_a, fa)
     raw = url.rsplit("/", 1)[1]
-    t = verify_ticket(SECRET, raw)
+    t = verify_ticket(TICKET_KEY, raw)
     assert t is not None and t.link_file_id == fa
     assert public.get(url).headers["x-accel-redirect"].endswith("/a.txt")
     body, sig = raw.split(".")
@@ -99,7 +99,7 @@ def test_ticket_is_bound_to_file_link_and_time(env: Env, panel: TestClient, publ
     other_link_file = link_file_ids(public, token_b)[0]
     r = public.post("/api/ticket", json={"token": token_a, "file": other_link_file})
     assert r.status_code == 404
-    assert verify_ticket(SECRET, raw, now=t.expires + 1) is None
+    assert verify_ticket(TICKET_KEY, raw, now=t.expires + 1) is None
     sql(env, "UPDATE links SET expires_at = '2000-01-01T00:00:00Z' WHERE token_hash IS NOT NULL")
     assert public.get(url).status_code == 404
 
@@ -108,7 +108,7 @@ def test_ticket_lifetime_capped_by_link_expiry(env: Env, panel: TestClient, publ
     ids = send_files(env, FILES)
     token, link_id = create_link(panel, [ids["a.txt"]], days=1)
     url = ticket_url(public, token, link_file_ids(public, token)[0])
-    t = verify_ticket(SECRET, url.rsplit("/", 1)[1])
+    t = verify_ticket(TICKET_KEY, url.rsplit("/", 1)[1])
     assert t is not None
     import time
     assert 3 * 3600 < t.expires - time.time() <= 4 * 3600 + 5
