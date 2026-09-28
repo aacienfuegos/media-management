@@ -51,10 +51,10 @@ def test_trash_moves_out_of_the_library_and_stops_serving(env: Env, panel: TestC
     assert moved.read_bytes() == b"hola" and not (env.root("send") / "viaje" / "nota.txt").exists()
     assert public.get(url).status_code == 404
     assert public.post("/api/share", json={"token": token}).json()["files"] == []
-    assert "nota.txt" not in panel.get("/roots/send", params={"dir": "viaje"}).text
+    assert "nota.txt" not in panel.get("/library", params={"root": "send", "dir": "viaje"}).text
     assert "viaje/nota.txt" in panel.get("/trash").text
     cycle(env.settings)
-    assert "nota.txt" not in panel.get("/roots/send", params={"dir": "viaje"}).text
+    assert "nota.txt" not in panel.get("/library", params={"root": "send", "dir": "viaje"}).text
     assert "file_trash" in panel.get("/audit").text
 
 

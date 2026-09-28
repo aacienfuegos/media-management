@@ -28,27 +28,39 @@ def _subdirs(relpaths: list[str], current: str) -> list[str]:
     return sorted(out, key=str.lower)
 
 
-@router.get("/roots/{root}")
-async def root_view(request: Request, root: str, user: User, conn: MainDb,
-                    dir: str = "", q: str = Query("", max_length=200),
-                    kind: Literal["", "video", "photo", "other"] = "",
-                    sort: Literal["name", "date", "size", "kind"] = "name",
-                    order: Literal["asc", "desc"] = "asc", page: int = Query(1, ge=1)) -> Response:
+@router.get("/library")
+async def library(request: Request, user: User, conn: MainDb,
+                  root: str = "", dir: str = "", q: str = Query("", max_length=200),
+                  kind: Literal["", "video", "photo", "other"] = "",
+                  sort: Literal["name", "date", "size", "kind"] = "name",
+                  order: Literal["asc", "desc"] = "asc", page: int = Query(1, ge=1)) -> Response:
     roots = roots_of(request)
-    if root not in roots:
+    if root and root not in roots:
         raise HTTPException(404)
-    # `dir` solo filtra filas de la BD por prefijo de relpath; nunca toca el disco.
-    current = dir.strip("/")
-    async with conn.execute("SELECT relpath FROM files WHERE root = ? AND present = 1", (root,)) as cur:
-        all_rel = [r[0] for r in await cur.fetchall()]
-    subdirs = _subdirs(all_rel, current)
-    where = ["root = ?", "present = 1"]
-    params: list[Any] = [root]
-    if current:
-        where.append("substr(relpath, 1, ?) = ? AND instr(substr(relpath, ? + 1), '/') = 0")
-        params += [len(current) + 1, current + "/", len(current) + 1]
+    where = ["present = 1"]
+    params: list[Any] = []
+    subdirs: list[str] = []
+    crumbs = []
+    current = ""
+    if root:
+        # `dir` solo filtra filas de la BD por prefijo de relpath; nunca toca el disco.
+        current = dir.strip("/")
+        async with conn.execute("SELECT relpath FROM files WHERE root = ? AND present = 1", (root,)) as cur:
+            subdirs = _subdirs([r[0] for r in await cur.fetchall()], current)
+        where.append("root = ?")
+        params.append(root)
+        if current:
+            where.append("substr(relpath, 1, ?) = ? AND instr(substr(relpath, ? + 1), '/') = 0")
+            params += [len(current) + 1, current + "/", len(current) + 1]
+        else:
+            where.append("instr(relpath, '/') = 0")
+        acc: list[str] = []
+        for part in PurePosixPath(current).parts if current else []:
+            acc.append(part)
+            crumbs.append(("/".join(acc), part))
     else:
-        where.append("instr(relpath, '/') = 0")
+        where.append(f"root IN ({', '.join('?' * len(roots))})")
+        params += list(roots)
     if q:
         where.append("instr(lower(name), lower(?)) > 0")
         params.append(q)
@@ -62,18 +74,16 @@ async def root_view(request: Request, root: str, user: User, conn: MainDb,
     total, total_bytes = (row[0], row[1]) if row else (0, 0)
     direction = "DESC" if order == "desc" else "ASC"
     async with conn.execute(
-            f"SELECT * FROM files WHERE {clause} ORDER BY {SORTS[sort]} {direction}, relpath "
+            f"SELECT * FROM files WHERE {clause} ORDER BY {SORTS[sort]} {direction}, root, relpath "
             "LIMIT ? OFFSET ?", (*params, PAGE, (page - 1) * PAGE)) as cur:
         files = await cur.fetchall()
-    crumbs = []
-    acc: list[str] = []
-    for part in PurePosixPath(current).parts if current else []:
-        acc.append(part)
-        crumbs.append(("/".join(acc), part))
-    return render(request, user, "root.html", root=roots[root], files=files, subdirs=subdirs,
+    shown = [roots[root]] if root else list(roots.values())
+    return render(request, user, "library.html", root=roots.get(root), files=files, subdirs=subdirs,
                   current=current, crumbs=crumbs, q=q, kind=kind, sort=sort, order=order,
                   page=page, pages=max(1, (total + PAGE - 1) // PAGE), total=total,
-                  total_bytes=total_bytes, icons=ICONS)
+                  total_bytes=total_bytes, icons=ICONS,
+                  shareable=any(r.shareable for r in shown),
+                  jellyfin=any(r.indexed_by_jellyfin for r in shown))
 
 
 @router.get("/files/{file_id}")
