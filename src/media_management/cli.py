@@ -48,6 +48,9 @@ def main() -> None:
     p_cmp = sub.add_parser("compare", help="compara dos manifiestos clip a clip")
     p_cmp.add_argument("candidate", type=Path)
     p_cmp.add_argument("current", type=Path)
+    p_seed = sub.add_parser("demo-seed", help="siembra la biblioteca del modo demo (solo directorios de demo)")
+    p_seed.add_argument("--jellyfin-images", type=Path, required=True,
+                        help="directorio del que el Jellyfin falso sirve las miniaturas")
     args = parser.parse_args()
     if args.cmd == "serve":
         serve(args.process, args.host, args.port)
@@ -60,3 +63,16 @@ def main() -> None:
         asyncio.run(run(get_settings()))
     elif args.cmd == "compare":
         sys.exit(compare_cmd(args.candidate, args.current))
+    elif args.cmd == "demo-seed":
+        from media_management.demo.seed import NotDemo, seed
+        from media_management.logs import setup_logging
+        from media_management.settings import get_settings
+
+        setup_logging("demo-seed")
+        try:
+            done = seed(get_settings(), args.jellyfin_images)
+        except NotDemo as e:
+            sys.stderr.write(f"{e}\n")
+            sys.exit(2)
+        if not done:
+            sys.stderr.write("el demo ya tiene datos: no se toca nada (./demo.sh reset para volver a sembrar)\n")

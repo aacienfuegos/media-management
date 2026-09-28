@@ -1,0 +1,72 @@
+# Modo demo: la app entera con los datos de prueba del paquete, sin Jellyfin ni ntfy.
+# Se usa encima de compose.yaml y con .env.demo:
+#   - en local, con compose.demo.local.yaml (proxy que hace de Authentik): ./demo.sh
+#   - en staging, sin él: allí el panel va por Traefik con Authentik real.
+#
+# Los datos se siembran una vez (demo-seed) y los reinicios no los tocan. Si algún
+# directorio de datos no es de demo (tiene contenido y le falta .demo-root), la
+# siembra falla y no arranca nada más: un .env equivocado no llega a la biblioteca real.
+
+x-demo-env: &demo-env
+  MM_JELLYFIN_URL: http://jellyfin:8080
+  # El export de IDs es fijo, lo escribe la siembra una vez.
+  MM_JELLYFIN_IDS_MAX_AGE_S: "3153600000"
+
+x-after-seed: &after-seed
+  demo-seed:
+    condition: service_completed_successfully
+
+services:
+  demo-seed:
+    image: ${IMAGE:?}
+    user: "${APP_UID:?}:${APP_GID:?}"
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["demo-seed", "--jellyfin-images", "/jellyfin-images"]
+    environment:
+      MM_ROOTS_FILE: /config/roots.toml
+      MM_MEDIA_BASE: /media
+      MM_DATA_DIR: /data
+      MM_ZIPS_DIR: /zips
+      MM_MANIFEST_PATH: /manifest/${MANIFEST_FILE:-buceo.candidate.json}
+      MM_JELLYFIN_IDS_FILE: /jellyfin-ids/jellyfin-ids.json
+    volumes:
+      - ${ROOTS_FILE:?}:/config/roots.toml:ro
+      - ${MEDIA_DIR:?}:/media
+      - ${DATA_DIR:?}:/data
+      - ${ZIPS_DIR:?}:/zips
+      - ${MANIFEST_DIR:?}:/manifest
+      - ${IDS_EXPORT_DIR:?}:/jellyfin-ids
+      - ${DEMO_JELLYFIN_DIR:?}:/jellyfin-images
+
+  # Jellyfin falso: lo que la app le pide y nada más. A un ID sin imagen contesta 500,
+  # como el de verdad.
+  jellyfin:
+    image: ${NGINX_IMAGE:?}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:uid=101,gid=101", "/var/cache/nginx:uid=101,gid=101"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./deploy/demo/jellyfin.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${DEMO_JELLYFIN_DIR:?}:/images:ro
+    depends_on: *after-seed
+
+  worker:
+    environment: *demo-env
+    depends_on: *after-seed
+
+  panel:
+    environment: *demo-env
+    depends_on: *after-seed
+
+  api:
+    environment: *demo-env
+    depends_on: *after-seed
+
+  public:
+    depends_on: *after-seed
