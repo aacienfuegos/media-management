@@ -118,7 +118,12 @@ ausente, vacío o de más de una hora (`MM_JELLYFIN_IDS_MAX_AGE_S`).
 ### Papelera (host)
 
 `host/media-trash-purge.sh` + `host/media-trash-purge.{service,timer}`, configurado en
-`/etc/default/media-trash-purge`. Borra `.trash/<raíz>/<AAAA-MM-DD>/` con más de 30
+`/etc/default/media-trash-purge` **y** en el drop-in
+`/etc/systemd/system/media-trash-purge.service.d/paths.conf` (plantilla en
+`host/media-trash-purge.service.d/paths.conf.example`). El drop-in lleva las rutas que
+systemd no puede leer del entorno (`RequiresMountsFor`, `ReadWritePaths` y el centinela
+en `ConditionPathExists`); sin él la unidad falla a propósito. Con el disco cifrado sin
+montar, el servicio se salta limpio. Borra `.trash/<raíz>/<AAAA-MM-DD>/` con más de 30
 días, nunca sigue symlinks y se niega si `TRASH_DIR` no termina en `/.trash` o no
 existe. Probar primero con `-n`. La app solo mueve ficheros: nunca borra.
 

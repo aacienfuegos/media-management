@@ -1,0 +1,9 @@
+# Copiar a /etc/systemd/system/media-trash-purge.service.d/paths.conf con las rutas
+# reales (las mismas que TRASH_DIR en /etc/default/media-trash-purge).
+[Unit]
+RequiresMountsFor=/ruta/a/media
+# Con el disco cifrado sin montar, el servicio se salta en vez de fallar.
+ConditionPathExists=/ruta/a/media/.media-root
+
+[Service]
+ReadWritePaths=/ruta/a/media/.trash
