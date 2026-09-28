@@ -148,7 +148,7 @@ async def ticket(request: Request, body: TicketIn, main: MainRo, pconn: PublicDb
     await public_event(pconn, "ticket_issued", "ok", link_id=link["id"], ref=t.ticket_id[:12], ip=ip,
                        link_file_id=lf.id, grant_id=result.grant_id)
     await pconn.commit()
-    return JSONResponse({"url": f"/download/{sign_ticket(settings.secret_key, t)}"})
+    return JSONResponse({"url": f"/download/{sign_ticket(settings.ticket_key, t)}"})
 
 
 def content_disposition(name: str) -> str:
@@ -166,7 +166,7 @@ async def download(request: Request, raw: str, main: MainRo, pconn: PublicDb) ->
     if main is None:
         return gone
     settings = settings_of(request)
-    t = verify_ticket(settings.secret_key, raw)
+    t = verify_ticket(settings.ticket_key, raw)
     if t is None:
         return gone
     link = await link_by_id(main, t.link_id)

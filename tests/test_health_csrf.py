@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from media_management.security import csrf_token
-from tests.conftest import SECRET, USER, Env
+from tests.conftest import CSRF_KEY, USER, Env
 
 
 def test_panel_healthz_reports_what_is_wrong(env: Env, panel: TestClient) -> None:
@@ -32,7 +32,7 @@ def test_home_shows_unmounted_banner(env: Env, panel: TestClient) -> None:
 def test_state_changes_need_csrf_token(panel: TestClient) -> None:
     assert panel.post("/scan", data={}).status_code == 403
     assert panel.post("/scan", data={"csrf": "x"}).status_code == 403
-    token = csrf_token(SECRET, USER)
+    token = csrf_token(CSRF_KEY, USER)
     cross = panel.post("/scan", data={"csrf": token}, headers={"Sec-Fetch-Site": "cross-site"},
                        follow_redirects=False)
     assert cross.status_code == 403

@@ -14,12 +14,13 @@ from media_management.panel import admin_routes, catalog_routes, links_routes, r
 from media_management.panel.deps import (
     CsrfUser, MainDb, PublicDb, User, client_ip, render, roots_of, settings_of)
 from media_management.roots import load_roots, media_problem
-from media_management.settings import Settings, get_settings
+from media_management.settings import Settings, get_settings, require_key
 from media_management.web import add_security_headers
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    require_key(settings.csrf_key, "MM_CSRF_KEY")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
