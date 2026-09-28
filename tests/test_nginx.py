@@ -29,11 +29,11 @@ DOCKER_NETS = ["172.16.0.0/12", "10.0.0.0/8"]
 CONTAINERS: dict[str, str] = {}
 
 
-def nginx_logs(base: str, until: str) -> str:
+def nginx_logs(base: str, until: str, times: int = 1) -> str:
     """Los logs llegan a Docker con algo de retraso: se espera a ver `until`."""
     for _ in range(50):
         r = subprocess.run(["docker", "logs", CONTAINERS[base]], capture_output=True, text=True)
-        if until in r.stdout + r.stderr:
+        if (r.stdout + r.stderr).count(until) >= times:
             break
         time.sleep(0.1)
     return r.stdout + r.stderr
@@ -116,8 +116,9 @@ def test_download_through_nginx(stack: tuple[Env, TestClient, str]) -> None:
     assert [r[0] for r in sql(env, "SELECT ip FROM tickets", db="public")] == ["203.0.113.5"]
     assert sql(env, "SELECT COUNT(*) FROM downloads", db="public")[0][0] == 2
     assert client.get(url[:-4] + "AAAA").status_code in (403, 404)
+    assert client.get(url.replace("/download/", "/Download/")).status_code == 404
     ticket = url.rsplit("/", 1)[1]
-    logs = nginx_logs(base, until='"uri":"/download/<ticket>"')
+    logs = nginx_logs(base, until='"uri":"/download/<ticket>"', times=2)
     assert ticket not in logs and ticket[:-4] not in logs
     assert '"uri":"/download/<ticket>"' in logs and logs.count('"uri":"/_protected/send/viaje/') == 2
     assert client.get("/_protected/viaje/" + quote("clip grande ñ.mp4")).status_code == 404

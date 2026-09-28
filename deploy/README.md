@@ -130,7 +130,8 @@ contenedor). Dos cosas:
    autenticación, y al resto de la red.
 
 Ejemplo con IPs de documentación (Traefik `192.0.2.10`, monitor `192.0.2.11`, ntfy
-`192.0.2.12:8080`, `SHARE_SUBNET` por defecto):
+`192.0.2.12:8080`). La subred es `SHARE_SUBNET`: si se cambia en el `.env`, hay que
+cambiarla aquí, o la salida queda abierta o nginx deja de llegar al público.
 
 ```sh
 #!/bin/sh
@@ -150,7 +151,9 @@ done
 iptables -A DOCKER-USER -j RETURN
 ```
 
-Tiene que sobrevivir a reinicios de Docker, que puede vaciar `DOCKER-USER`: como unidad
+Es solo IPv4. Si el LXC o Docker tienen IPv6, la cadena de `ip6tables` está vacía y
+nada de esto filtra: o se desactiva IPv6 en el LXC (y no se activa `enable_ipv6` en
+Docker), o se replican las reglas en `ip6tables`. Tiene que sobrevivir a reinicios de Docker, que puede vaciar `DOCKER-USER`: como unidad
 `oneshot` con `After=docker.service`, `PartOf=docker.service` y
 `WantedBy=docker.service`.
 
@@ -240,8 +243,9 @@ Todos los procesos escriben JSON a stdout. Las acciones que cambian estado van c
 `action`, `result`, `ip` y, cuando hay un token de por medio, solo su hash truncado.
 nginx escribe su access log en JSON. El ticket de descarga va en la ruta (`/download/<ticket>`) y basta
 para descargar ese fichero durante horas, así que no se registra: nginx lo sustituye
-por `<ticket>` (y en `/download/` solo escribe errores críticos, porque el error log
-lleva la línea de petición), y el proceso público no tiene access log propio.
+por `<ticket>` (también en `/Download/...` y demás variantes), su error log solo
+escribe errores críticos porque lleva la línea de petición sin tapar, y el proceso
+público no tiene access log propio.
 
 **Riesgo aceptado:** el access log de Traefik sí lo ve. No se recorta porque CrowdSec
 necesita la ruta. Aguanta porque el ticket no da más que el enlace del que sale, cada
@@ -335,7 +339,8 @@ la forma más barata de aprobar es mirar el fichero equivocado o romper el servi
   - `curl -H 'X-authentik-username: <usuario>' http://<ip-lxc>:8002/` → `403`;
   - lo mismo contra `:8003/api/v1/roots` → `401`.
 - **Cortafuegos**, desde otra máquina de la red que no sea Traefik ni el monitor: los
-  puertos `8002`, `8003` y `8080` no responden.
+  puertos `8002`, `8003` y `8080` no responden, ni por IPv4 ni por IPv6 (o el LXC no
+  tiene dirección IPv6).
 - **La pareja legítima de las dos anteriores:** el panel por su nombre, a través de
   Traefik y Authentik, funciona; los tres `healthz` del monitor siguen en verde; y un
   enlace abierto desde fuera de la LAN descarga.

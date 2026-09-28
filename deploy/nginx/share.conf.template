@@ -12,7 +12,7 @@
 # descarga servida se registra con su $uri final (/_protected/<fichero>); lo que se
 # queda en /download/ (ticket rechazado, límite) sale con el ticket tapado.
 map $uri $mm_log_uri {
-    ~^/download/  /download/<ticket>;
+    ~*^/download/  /download/<ticket>;
     default       $uri;
 }
 
@@ -36,6 +36,10 @@ server {
     real_ip_recursive off;
 
     access_log /dev/stdout mm_json;
+    # El error log lleva la línea de petición sin tapar, y un ticket puede llegar por
+    # cualquier location (p. ej. /Download/...). Solo lo crítico; el resto de fallos
+    # (límites, upstream caído) ya consta en el access log con su status.
+    error_log /dev/stderr crit;
     client_max_body_size 16k;
     limit_conn_status 429;
     limit_req_status 429;
@@ -51,11 +55,7 @@ server {
         proxy_pass http://${PUBLIC_UPSTREAM};
     }
 
-    # El error log incluye la línea de petición (con el ticket) en los rechazos por
-    # límite y en los fallos de upstream o de disco: aquí solo se registra lo crítico.
-    # El rechazo sigue constando en el access log, con el ticket tapado.
     location /download/ {
-        error_log /dev/stderr crit;
         limit_req zone=mm_page burst=60 nodelay;
         limit_conn mm_conn ${DOWNLOAD_CONN_PER_IP};
         proxy_pass http://${PUBLIC_UPSTREAM};
@@ -65,7 +65,6 @@ server {
     # y la ruta. Los bytes, los 206/Range y las reanudaciones son cosa de nginx.
     location /_protected/ {
         internal;
-        error_log /dev/stderr crit;
         alias ${MEDIA_DIR}/;
         limit_conn mm_conn ${DOWNLOAD_CONN_PER_IP};
         limit_rate ${DOWNLOAD_RATE};

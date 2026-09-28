@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import unicodedata
 
 CTID = os.environ["MM_EXPORT_CTID"]
 DB = os.environ.get("MM_EXPORT_DB", "/var/lib/jellyfin/data/jellyfin.db")
@@ -51,7 +52,7 @@ def read_ids() -> dict[str, str] | None:
             items[path] = ident.replace("-", "").lower()
     # La app es la frontera y descarta el export entero; esto evita escribirlo.
     bad = [p for p, i in items.items()
-           if not ITEM_ID.match(i) or ".." in p.split("/") or any(ord(c) < 32 or ord(c) == 127 for c in p)]
+           if not ITEM_ID.match(i) or ".." in p.split("/") or any(unicodedata.category(c) == "Cc" for c in p)]
     if bad:
         log(f"{len(bad)} filas de la biblioteca con ID o ruta inválidos: no escribo el export")
         return None
