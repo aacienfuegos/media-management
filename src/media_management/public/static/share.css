@@ -130,6 +130,17 @@ button .sub { font-weight: 400; opacity: .85; white-space: nowrap; }
 .single .thumb.icon { max-width: 10rem; }
 .single .file button { width: 100%; min-height: 3.5rem; font-size: 1.05rem; }
 .single .file button .label { display: inline; }
+.file .thumb-btn { position: relative; display: block; min-width: 0; min-height: 0; width: auto; padding: 0; border: 0; border-radius: 9px; background: none; cursor: zoom-in; }
+.single .file .thumb-btn { width: 100%; max-width: 24rem; margin: 0 auto; min-height: 0; }
+.thumb-btn .zoom { position: absolute; right: .3rem; bottom: .3rem; display: flex; padding: .2rem; border-radius: 6px; background: rgb(0 0 0 / .55); color: #fff; }
+.preview { width: min(40rem, calc(100vw - 1.5rem)); max-height: calc(100dvh - 1.5rem); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text); overflow: auto; }
+.preview::backdrop { background: rgb(0 0 0 / .7); }
+.preview img { display: block; width: 100%; height: auto; background: var(--surface-2); }
+.preview-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: .9rem 1rem; }
+.preview-foot .name { font-weight: 600; overflow-wrap: anywhere; }
+.preview-foot .info { color: var(--muted); font-size: .9rem; }
+.preview-actions { display: flex; gap: .5rem; margin-left: auto; }
+.preview-actions button { min-height: 2.75rem; }
 .foot { color: var(--muted); font-size: .88rem; text-align: center; margin: 1.25rem 0 0; }
 
 @media (max-width: 560px) {
