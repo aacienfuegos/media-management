@@ -1,5 +1,6 @@
-# Solo durante el traspaso del manifiesto (deploy/README.md):
-#   docker compose -f compose.yaml -f compose.compare.yaml up -d
+# Solo durante el traspaso del manifiesto (deploy/README.md), activado en el .env con
+#   COMPOSE_FILE=compose.yaml:compose.compare.yaml
+# y no con dos -f: así un `docker compose up -d` a secas no quita el montaje de solo lectura.
 # MANIFEST_DIR es un directorio propio del candidato; el que lee producción se monta
 # aparte y en solo lectura, así que ninguna errata en MANIFEST_FILE puede sobrescribirlo.
 # El worker además se niega a escribir si los dos resultan ser el mismo directorio.
