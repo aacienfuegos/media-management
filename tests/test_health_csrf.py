@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from media_management.security import csrf_token
 from tests.conftest import CSRF_KEY, USER, Env
+from tests.helpers import CSRF, create_link, send_files
 
 
 def test_panel_healthz_reports_what_is_wrong(env: Env, panel: TestClient) -> None:
@@ -60,3 +61,13 @@ def test_security_headers_everywhere(panel: TestClient, public: TestClient, api:
     page = public.get("/")
     assert page.headers["cache-control"] == "no-store"
     assert '<meta name="robots" content="noindex' in page.text
+
+
+def test_action_notice_comes_from_a_fixed_key(env: Env, panel: TestClient) -> None:
+    ids = send_files(env, {"a.txt": b"A"})
+    _, link_id = create_link(panel, list(ids.values()))
+    r = panel.post(f"/links/{link_id}/revoke", data={"csrf": CSRF}, follow_redirects=False)
+    assert r.headers["location"] == f"/links/{link_id}?hecho=revoked"
+    assert "Enlace revocado." in panel.get(r.headers["location"]).text
+    page = panel.get(f"/links/{link_id}?hecho=%3Cscript%3Ealert(1)%3C/script%3E").text
+    assert "alert(1)" not in page and 'role="status"' not in page

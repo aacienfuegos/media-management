@@ -108,7 +108,7 @@
     <td class="nowrap" data-value="{{ t.issued_at }}">{{ t.issued_at|local("%d/%m/%Y %H:%M:%S") }}</td>
     <td class="name">{% if t.link_file_id == 0 %}<span class="tag">ZIP</span> {{ zip_entries.get(t.id, [])|join(", ") }}{% else %}{{ names.get(t.link_file_id, "?") }}{% endif %}</td>
     {% if link.mode == "request" %}<td>{{ grant_names.get(t.grant_id, "—") }}</td>{% endif %}
-    <td class="name opt-sm">{{ t.ip or "" }}</td>
+    <td class="nowrap opt-sm"><code>{{ t.ip or "" }}</code></td>
     <td class="small opt">{{ t.user_agent }}</td>
     <td class="num opt">{{ t.requests }}</td>
     <td class="nowrap opt">{{ t.last_request|local("%d/%m %H:%M:%S") if t.last_request else "sin empezar" }}</td>
