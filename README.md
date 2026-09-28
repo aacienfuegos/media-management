@@ -61,6 +61,34 @@ solo lectura (por URI y por montaje) y solo escribe en `public.db`.
 - El texto que escriben los visitantes se trata como hostil: autoescape, CSP estricta
   sin `unsafe-inline` en todas las páginas, texto plano y longitud acotada.
 
+## Probar en local
+
+Solo hace falta Docker:
+
+```sh
+./demo.sh            # construye la imagen y arranca con datos de prueba
+```
+
+- Panel en <http://localhost:8002> como usuario `demo`. Un proxy local hace de
+  Authentik; la app sigue aceptando la identidad solo si viene de él.
+- Página pública de los enlaces en <http://localhost:8080>, API en
+  <http://localhost:8003> (`/healthz` en verde).
+- Una biblioteca sintética (`src/media_management/demo/fixtures`, 1,3 MB): vídeo 4K y
+  HD, fotos con EXIF, un clip sin fecha (fuera del manifiesto), nombres fuera del
+  patrón de cámara, un duplicado `(1)`, un clip que Jellyfin aún no ha indexado, la
+  raíz `send` renombrable y `originales-120fps` con miniaturas prestadas de `buceo`.
+- Un Jellyfin falso que sirve una miniatura por clip, y sin ntfy.
+
+Los datos viven en `./demo-data` y sobreviven a los reinicios: lo que pruebes
+(enlaces, papelera, renombrados) sigue ahí. `./demo.sh reset` los borra y el siguiente
+arranque los vuelve a sembrar; `./demo.sh down`, `./demo.sh logs -f` y cualquier otro
+comando de `docker compose` pasan tal cual. Las claves del demo se generan en
+`.env.demo.keys` (ignorado por git).
+
+Si cambias los fixtures (`uv run python deploy/demo/make_fixtures.py`, con ffmpeg y
+exiv2), actualiza `deploy/demo/manifest.expected.json` con el manifiesto que genere el
+demo: la CI lo compara clip a clip.
+
 ## Desarrollo
 
 Requisitos: Python 3.13 y [uv](https://docs.astral.sh/uv/); `ffmpeg` para los vídeos

@@ -10,3 +10,5 @@ __pycache__/
 .mypy_cache/
 /data/
 *.egg-info/
+/demo-data/
+.env.demo.keys

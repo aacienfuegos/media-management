@@ -402,3 +402,24 @@ la forma más barata de aprobar es mirar el fichero equivocado o romper el servi
   de Jellyfin falla; una solicitud de acceso sí llega a ntfy.
 - Abrir el enlace en WhatsApp o Telegram (previsualización) no genera ningún ticket en
   la ficha del enlace.
+
+## Staging (modo demo)
+
+El staging corre el modo demo con Authentik real: `compose.yaml` + `compose.demo.yaml`,
+**sin** `compose.demo.local.yaml` (ese es el proxy de cabeceras y el build locales).
+
+- Ficheros del commit de la imagen (`org.opencontainers.image.revision`):
+  `compose.yaml`, `compose.demo.yaml`, `.env.demo`, `deploy/demo/roots.toml`,
+  `deploy/demo/jellyfin.conf` y `deploy/nginx/share.conf.template`. Los fixtures van
+  dentro de la imagen.
+- Variables: las de `.env.demo` y encima un `.env` propio, que gana
+  (`docker compose --env-file .env.demo --env-file .env -f compose.yaml -f compose.demo.yaml`).
+  En el `.env` propio: `IMAGE`, `APP_UID`, `APP_GID`, `MM_TICKET_KEY`, `MM_CSRF_KEY`,
+  `TRAEFIK_IP`, `MM_TRUSTED_PROXIES`, `MM_PANEL_ALLOWED_USERS`, `MM_PUBLIC_URL`,
+  `MM_PANEL_URL`, los `*_BIND` y, si se quieren fuera del directorio del proyecto, las
+  rutas de datos (`MEDIA_DIR`, `DATA_DIR`, `ZIPS_DIR`, `MANIFEST_DIR`,
+  `IDS_EXPORT_DIR`, `DEMO_JELLYFIN_DIR`).
+- Cada directorio de datos tiene que existir, ser de `APP_UID` y estar vacío o marcado
+  con `.demo-root`: si no, `demo-seed` falla y no arranca nada más.
+- Volver a los datos de prueba iniciales: `down`, vaciar esos directorios y `up`. La
+  app nunca borra, tampoco en demo.
