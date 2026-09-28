@@ -21,8 +21,10 @@ def today() -> str:
 
 
 def test_app_never_unlinks() -> None:
+    """La única excepción son los zips de enlaces: datos derivados, fuera de la
+    biblioteca, y con sus propios límites (test_zips.test_sweep_only_touches_its_own_names)."""
     forbidden = re.compile(r"\b(unlink|rmtree|os\.remove|os\.rmdir|shutil\.move|shutil\.rmtree)\s*\(")
-    offenders = [f"{p}:{i}" for p in SRC.rglob("*.py")
+    offenders = [f"{p}:{i}" for p in SRC.rglob("*.py") if p.name != "zips.py"
                  for i, line in enumerate(p.read_text().splitlines(), 1) if forbidden.search(line)]
     assert offenders == []
 

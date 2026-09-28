@@ -41,7 +41,7 @@ def test_panel_refuses_to_start_without_csrf_key(tmp_path: Path) -> None:
 def compose_config(tmp_path: Path, *files: str, extra: str = "") -> dict[str, Any]:
     env = tmp_path / ".env"
     env.write_text(extra + "IMAGE=app@sha256:0\nNGINX_IMAGE=nginx@sha256:0\nAPP_UID=1000\nAPP_GID=1000\nMEDIA_DIR=/m\nDATA_DIR=/d\nROOTS_FILE=/r.toml\n"
-                   "MANIFEST_DIR=/man\nIDS_EXPORT_DIR=/ids\nTRAEFIK_IP=192.0.2.1\n"
+                   "MANIFEST_DIR=/man\nIDS_EXPORT_DIR=/ids\nZIPS_DIR=/z\nTRAEFIK_IP=192.0.2.1\n"
                    "MM_TICKET_KEY=ticket-secreta\nMM_CSRF_KEY=csrf-secreta\nMM_NTFY_TOKEN=ntfy-secreto\n")
     args = [a for f in files for a in ("-f", str(REPO / f))]
     out = subprocess.run(["docker", "compose", *args, "--env-file", str(env), "config", "--format", "json"],
@@ -57,6 +57,15 @@ def test_compose_gives_each_secret_only_to_its_service(tmp_path: Path) -> None:
                               if secret in json.dumps(svc.get("environment", {})))
                for secret in ("ticket-secreta", "csrf-secreta", "ntfy-secreto")}
     assert holders == {"ticket-secreta": ["public"], "csrf-secreta": ["panel"], "ntfy-secreto": ["public"]}
+
+
+@needs_docker
+def test_only_the_worker_writes_zips_and_only_nginx_reads_them(tmp_path: Path) -> None:
+    services = compose_config(tmp_path, "compose.yaml")
+    zips = {name: v for name, svc in services.items() for v in svc.get("volumes", []) if v["source"] == "/z"}
+    assert sorted(zips) == ["nginx", "worker"]
+    assert not zips["worker"].get("read_only") and zips["nginx"]["read_only"]
+    assert services["worker"]["environment"]["MM_ZIPS_DIR"] == "/zips"
 
 
 @needs_docker

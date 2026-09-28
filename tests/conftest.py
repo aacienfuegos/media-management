@@ -76,8 +76,11 @@ def make_settings(tmp_path: Path, **overrides: object) -> Settings:
     roots_file = tmp_path / "roots.toml"
     roots_file.write_text(ROOTS_TOML.format(base=base))
     (tmp_path / "manifiesto").mkdir(exist_ok=True)
+    (tmp_path / "zips").mkdir(exist_ok=True)
+    (tmp_path / "zips" / ".zips-root").write_text("")
     values: dict[str, object] = {
         "roots_file": roots_file, "media_base": base, "data_dir": tmp_path / "data",
+        "zips_dir": tmp_path / "zips", "zip_min_free_gb": 0,
         "ticket_key": TICKET_KEY, "csrf_key": CSRF_KEY, "jellyfin_url": "",
         "jellyfin_ids_file": tmp_path / "jellyfin-ids.json",
         "manifest_path": tmp_path / "manifiesto" / "buceo.candidate.json",

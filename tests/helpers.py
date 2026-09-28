@@ -5,6 +5,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from media_management.db import connect
+from media_management.roots import load_roots
+from media_management.zips import reconcile_zips
 from media_management.security import csrf_token
 from tests.conftest import CSRF_KEY, USER, Env
 from tests.test_manifest import cycle
@@ -34,9 +36,12 @@ def send_files(env: Env, names: dict[str, bytes]) -> dict[str, int]:
 
 
 def create_link(panel: TestClient, file_ids: list[int], mode: str = "open", password: str = "",
-                days: int = 7, title: str = "") -> tuple[str, int]:
-    r = panel.post("/links", data={"csrf": CSRF, "file_id": file_ids, "mode": mode, "password": password,
-                                   "days": days, "title": title})
+                days: int = 7, title: str = "", zip: bool = False) -> tuple[str, int]:
+    data: dict[str, Any] = {"csrf": CSRF, "file_id": file_ids, "mode": mode, "password": password,
+                            "days": days, "title": title}
+    if zip:
+        data["zip"] = "true"
+    r = panel.post("/links", data=data)
     assert r.status_code == 200, r.text
     m = re.search(r'id="link-url">[^<#]*#([A-Za-z0-9_-]+)<', r.text)
     assert m
@@ -53,6 +58,22 @@ def link_file_ids(public: TestClient, token: str, **cred: str) -> list[int]:
 
 def ticket_url(public: TestClient, token: str, file: int, **cred: str) -> str:
     r = public.post("/api/ticket", json={"token": token, "file": file, **cred})
+    assert r.status_code == 200, r.text
+    url: str = r.json()["url"]
+    return url
+
+
+def reconcile(env: Env, times: int = 1) -> None:
+    """Vueltas del bucle de zips del worker: cada una genera como mucho un zip."""
+    async def go() -> None:
+        async with connect(env.settings.main_db) as conn:
+            for _ in range(times):
+                await reconcile_zips(conn, env.settings, load_roots(env.settings))
+    asyncio.run(go())
+
+
+def zip_url(public: TestClient, token: str, **cred: str) -> str:
+    r = public.post("/api/zip", json={"token": token, **cred})
     assert r.status_code == 200, r.text
     url: str = r.json()["url"]
     return url

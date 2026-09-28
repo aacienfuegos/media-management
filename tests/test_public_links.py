@@ -1,7 +1,5 @@
 import asyncio
-import io
 import os
-import zipfile
 from urllib.parse import unquote
 
 import pytest
@@ -68,51 +66,6 @@ def test_revoking_cuts_pending_resumes(env: Env, panel: TestClient, public: Test
     assert public.get(url, headers={"Range": "bytes=0-99"}).status_code == 200
     panel.post(f"/links/{link_id}/revoke", data={"csrf": CSRF})
     assert public.get(url, headers={"Range": "bytes=100-"}).status_code == 404
-
-
-def zip_url(public: TestClient, token: str, **cred: str) -> str:
-    r = public.post("/api/zip", json={"token": token, **cred})
-    assert r.status_code == 200, r.text
-    url: str = r.json()["url"]
-    return url
-
-
-def test_zip_has_every_present_file_with_unique_names(env: Env, panel: TestClient, public: TestClient) -> None:
-    ids = send_files(env, {**FILES, "otra/A.txt": b"otra"})
-    token, _ = create_link(panel, list(ids.values()), title="Viaje/Asturias")
-    (env.root("send") / "b.txt").unlink()
-    r = public.get(zip_url(public, token))
-    assert r.status_code == 200 and "x-accel-redirect" not in r.headers
-    assert r.headers["content-type"] == "application/zip"
-    assert int(r.headers["content-length"]) == len(r.content)
-    assert "filename*=UTF-8''ViajeAsturias.zip" in r.headers["content-disposition"]
-    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
-        contents = {i.filename: zf.read(i) for i in zf.infolist()}
-        assert {i.compress_type for i in zf.infolist()} == {zipfile.ZIP_STORED}
-    assert contents == {"a.txt": FILES["a.txt"], "informe ñ «final».pdf": FILES["carpeta/informe ñ «final».pdf"],
-                        "A (2).txt": b"otra"}
-    assert sql(env, "SELECT link_file_id FROM downloads", db="public") == [(0,)]
-
-
-def test_zip_needs_credentials_and_is_cut_by_revocation(env: Env, panel: TestClient, public: TestClient) -> None:
-    ids = send_files(env, FILES)
-    token, link_id = create_link(panel, [ids["a.txt"], ids["b.txt"]], mode="password", password="buceo-en-grupo")
-    assert public.post("/api/zip", json={"token": token}).json() == {"need": "password"}
-    assert public.post("/api/zip", json={"token": token, "password": "adivina"}).status_code == 401
-    url = zip_url(public, token, password="buceo-en-grupo")
-    assert public.get(url).status_code == 200
-    panel.post(f"/links/{link_id}/revoke", data={"csrf": CSRF})
-    assert public.get(url).status_code == 404
-    assert public.post("/api/zip", json={"token": token, "password": "buceo-en-grupo"}).status_code == 404
-
-
-def test_zip_ticket_needs_a_present_file(env: Env, panel: TestClient, public: TestClient) -> None:
-    ids = send_files(env, FILES)
-    token, _ = create_link(panel, [ids["a.txt"]])
-    url = zip_url(public, token)
-    (env.root("send") / "a.txt").unlink()
-    assert public.get(url).status_code == 404
-    assert public.post("/api/zip", json={"token": token}).status_code == 404
 
 
 def test_range_requests_do_not_issue_tickets(env: Env, panel: TestClient, public: TestClient) -> None:

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Annotated, Any, Literal
 
 import aiosqlite
@@ -13,6 +14,7 @@ from media_management.panel.deps import CsrfUser, MainDb, PublicDb, User, client
 from media_management.roots import Root
 from media_management.security import hash_password, hash_token, new_token, token_ref
 from media_management.thumbs import get_thumb, thumb_item_id
+from media_management.zips import MIN_FILES, zip_status
 
 router = APIRouter()
 MAX_FILES = 500
@@ -40,7 +42,7 @@ async def new_link(request: Request, user: User, conn: MainDb,
     settings = settings_of(request)
     return render(request, user, "link_new.html", files=files, error=None,
                   default_days=settings.link_default_days, max_days=settings.link_max_days,
-                  title="", mode="open")
+                  title="", mode="open", zip=True)
 
 
 @router.post("/links")
@@ -49,7 +51,8 @@ async def create_link(request: Request, user: CsrfUser, conn: MainDb,
                       title: Annotated[str, Form(max_length=120)] = "",
                       mode: Annotated[Literal["open", "password", "request"], Form()] = "open",
                       days: Annotated[int, Form(ge=1)] = 7,
-                      password: Annotated[str, Form(max_length=256)] = "") -> Response:
+                      password: Annotated[str, Form(max_length=256)] = "",
+                      zip: Annotated[bool, Form()] = False) -> Response:
     settings = settings_of(request)
     roots = roots_of(request)
     files = await _selectable(conn, roots, file_id)
@@ -62,7 +65,7 @@ async def create_link(request: Request, user: CsrfUser, conn: MainDb,
         error = "La contraseña tiene que tener al menos 8 caracteres."
     if error:
         return render(request, user, "link_new.html", status_code=400, files=files, error=error,
-                      default_days=days, max_days=settings.link_max_days, title=title, mode=mode)
+                      default_days=days, max_days=settings.link_max_days, title=title, mode=mode, zip=zip)
     token = new_token()
     token_hash = hash_token(token)
     title = title.strip() or (files[0]["name"] if len(files) == 1 else f"{len(files)} ficheros")
@@ -80,8 +83,11 @@ async def create_link(request: Request, user: CsrfUser, conn: MainDb,
         thumb = strip_jpeg_metadata(raw) if raw else None
         await conn.execute("INSERT INTO link_files (link_id, file_id, position, thumb_jpeg) VALUES (?, ?, ?, ?)",
                            (link_id, f["id"], pos, thumb))
+    zip = zip and len(files) >= MIN_FILES
+    if zip:
+        await conn.execute("INSERT INTO link_zips (link_id) VALUES (?)", (link_id,))
     await audit(conn, user, "link_created", "ok", target=token_ref(token_hash), ip=client_ip(request),
-                link_id=link_id, mode=mode, files=len(files), days=days)
+                link_id=link_id, mode=mode, files=len(files), days=days, zip=zip)
     await conn.commit()
     link = await link_by_id(conn, int(link_id or 0))
     return render(request, user, "link_created.html", link=link, files=files,
@@ -131,6 +137,9 @@ async def link_view(request: Request, link_id: int, user: User, conn: MainDb, pc
             "(SELECT MAX(ts) FROM downloads d WHERE d.ticket_id = t.id) AS last_request "
             "FROM tickets t WHERE t.link_id = ? ORDER BY t.issued_at DESC LIMIT 500", (link_id,)) as cur:
         tickets = await cur.fetchall()
+    async with pconn.execute("SELECT e.ticket_id, e.names FROM ticket_zip_entries e JOIN tickets t "
+                             "ON t.id = e.ticket_id WHERE t.link_id = ?", (link_id,)) as cur:
+        zip_entries = {r["ticket_id"]: json.loads(r["names"]) for r in await cur.fetchall()}
     async with pconn.execute(
             "SELECT COUNT(*) FROM auth_attempts WHERE link_id = ? AND ok = 0", (link_id,)) as cur:
         row = await cur.fetchone()
@@ -148,8 +157,12 @@ async def link_view(request: Request, link_id: int, user: User, conn: MainDb, pc
             entry["downloads"] += 1
             entry["ips"].add(t["ip"])
             entry["agents"].add(t["user_agent"])
+    async with conn.execute("SELECT 1 FROM link_zips WHERE link_id = ?", (link_id,)) as cur:
+        zip_enabled = await cur.fetchone() is not None
+    zip = await zip_status(conn, link_id, sum(lf.present for lf in files))
     settings = settings_of(request)
     return render(request, user, "link.html", link=link, files=files, names=names, per_file=per_file,
+                  zip_enabled=zip_enabled, zip=zip, min_zip_files=MIN_FILES, zip_entries=zip_entries,
                   tickets=tickets, failures=failures, requests=requests, grants=grants,
                   grant_names=grant_names, by_grant=by_grant, now=now_iso(), active=is_active(link),
                   max_days=settings.link_max_days, request_ttl_days=settings.request_ttl_days)
@@ -180,5 +193,24 @@ async def revoke_link(request: Request, link_id: int, user: CsrfUser, conn: Main
     await conn.execute("UPDATE links SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", (now_iso(), link_id))
     await audit(conn, user, "link_revoked", "ok", target=token_ref(link["token_hash"]), ip=client_ip(request),
                 link_id=link_id)
+    await conn.commit()
+    return RedirectResponse(f"/links/{link_id}", status_code=303)
+
+
+@router.post("/links/{link_id}/zip")
+async def link_zip(request: Request, link_id: int, user: CsrfUser, conn: MainDb,
+                   action: Annotated[Literal["enable", "disable", "regenerate"], Form()]) -> Response:
+    link = await link_by_id(conn, link_id)
+    if link is None:
+        raise HTTPException(404)
+    if action == "enable":
+        await conn.execute("INSERT OR IGNORE INTO link_zips (link_id) VALUES (?)", (link_id,))
+    elif action == "disable":
+        await conn.execute("DELETE FROM link_zips WHERE link_id = ?", (link_id,))
+    else:
+        await conn.execute("UPDATE link_zips SET fingerprint = NULL, problem = NULL, failures = 0, "
+                           "failed_fingerprint = NULL, failed_at = NULL WHERE link_id = ?", (link_id,))
+    await audit(conn, user, f"link_zip_{action}", "ok", target=token_ref(link["token_hash"]),
+                ip=client_ip(request), link_id=link_id)
     await conn.commit()
     return RedirectResponse(f"/links/{link_id}", status_code=303)
