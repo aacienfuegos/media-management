@@ -1,10 +1,13 @@
 import datetime
+import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import aiosqlite
 
 from media_management.db import iso, now_iso, utcnow
+from media_management.roots import PathRejected, Root, resolve_in_root
 
 TOKEN_SHAPE = re.compile(r"^[A-Za-z0-9_-]{20,100}$")
 MODES = ("open", "password", "request")
@@ -62,6 +65,23 @@ async def link_file(conn: aiosqlite.Connection, link_id: int, link_file_id: int)
         if lf.id == link_file_id:
             return lf
     return None
+
+
+def servable_path(roots: dict[str, Root], media_base: Path, lf: LinkFile | None) -> Path | None:
+    """Ruta real de un fichero de enlace que se puede servir: presente, en una raíz
+    compartible, sin salir de ella ni de la base de media."""
+    if lf is None or not lf.present:
+        return None
+    root = roots.get(lf.root)
+    if root is None or not root.shareable:
+        return None
+    try:
+        real = resolve_in_root(root, lf.relpath)
+    except PathRejected:
+        return None
+    if not real.is_file() or not real.is_relative_to(Path(os.path.realpath(media_base))):
+        return None
+    return real
 
 
 def strip_jpeg_metadata(data: bytes) -> bytes | None:

@@ -155,6 +155,7 @@ function showPending() {
 
 function showFiles(data) {
   const list = el("ul", { class: "files" });
+  const rows = [];
   for (const file of data.files) {
     const thumb = file.thumb
       ? el("img", { class: "thumb", src: file.thumb, alt: "" })
@@ -162,6 +163,7 @@ function showFiles(data) {
     const status = el("span", { class: "status", role: "status" });
     const button = el("button", { class: "primary", type: "button" }, "Descargar");
     button.addEventListener("click", () => download(file, button, status));
+    rows.push({ file, button, status });
     list.append(el("li", {}, thumb,
       el("div", { class: "meta" }, el("span", { class: "name" }, file.name), el("span", { class: "muted" }, formatSize(file.size)), status),
       button));
@@ -170,7 +172,82 @@ function showFiles(data) {
   app.replaceChildren(el("div", { class: "card wide" },
     el("h1", {}, data.title),
     el("p", { class: "muted" }, `${data.files.length} fichero${data.files.length === 1 ? "" : "s"} · ${formatSize(total)} · disponible hasta el ${formatDate(data.expires_at)}`),
+    data.files.length > 1 ? downloadAll(rows, data.zip) : null,
     data.files.length ? list : el("p", { class: "muted" }, "Este enlace ya no tiene ficheros disponibles.")));
+}
+
+function downloadAll(rows, zip) {
+  const status = el("p", { class: "status", role: "status" });
+  const zipSlot = el("span");
+  const separate = el("button", { type: "button" }, "Descargar todo por separado");
+  separate.addEventListener("click", async () => {
+    separate.disabled = true;
+    status.textContent = "Si el navegador pregunta si permites descargar varios ficheros, acepta.";
+    for (const row of rows) {
+      if (!await download(row.file, row.button, row.status)) {
+        status.textContent = "Se ha parado en " + row.file.name + ". Puedes seguir con los botones de cada fichero.";
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    separate.disabled = false;
+  });
+  showZip(zipSlot, zip, status);
+  return el("div", { class: "all" }, el("div", { class: "actions" }, zipSlot, separate), status);
+}
+
+// Cada comprobación vuelve a validar la credencial (argon2 en los enlaces con
+// contraseña): se espacian y se paran, y después se comprueba a mano.
+const ZIP_POLL_FIRST_MS = 15000;
+const ZIP_POLL_MAX_MS = 120000;
+const ZIP_POLL_ATTEMPTS = 8;
+
+function showZip(slot, zip, status, attempt = 0) {
+  if (zip && zip.state === "ready") {
+    const button = el("button", { class: "primary", type: "button" }, `Descargar todo en ZIP (${formatSize(zip.size)})`);
+    button.addEventListener("click", () => downloadZip(button, status));
+    slot.replaceChildren(button);
+  } else if (zip && zip.state === "pending" && attempt < ZIP_POLL_ATTEMPTS) {
+    slot.replaceChildren(el("button", { type: "button", disabled: "" }, "Preparando el ZIP…"));
+    const delay = Math.min(ZIP_POLL_FIRST_MS * 2 ** attempt, ZIP_POLL_MAX_MS);
+    setTimeout(() => refreshZip(slot, status, attempt + 1), delay);
+  } else if (zip && zip.state === "pending") {
+    const check = el("button", { type: "button" }, "Comprobar de nuevo");
+    check.addEventListener("click", () => { check.disabled = true; refreshZip(slot, status, 0); });
+    slot.replaceChildren(el("span", { class: "muted small" }, "El ZIP aún se está preparando. "), check);
+  } else {
+    slot.replaceChildren();
+  }
+}
+
+async function refreshZip(slot, status, attempt) {
+  if (!slot.isConnected) return;
+  const { status: code, data } = await post("/api/share", credentials());
+  if (code === 200) showZip(slot, data.zip, status, attempt);
+  else showZip(slot, { state: "pending" }, status, ZIP_POLL_ATTEMPTS);
+}
+
+function startDownload(url) {
+  const a = el("a", { href: url, download: "" });
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
+async function downloadZip(button, status) {
+  button.disabled = true;
+  status.textContent = "Preparando…";
+  const { status: code, data } = await post("/api/zip", credentials());
+  button.disabled = false;
+  if (code === 200 && data.url) {
+    status.textContent = "Descarga del ZIP iniciada. Si se corta, puedes reanudarla desde el navegador durante unas horas.";
+    startDownload(data.url);
+    return;
+  }
+  if (code === 404) status.textContent = "El ZIP ya no está disponible. Vuelve a cargar la página.";
+  else if (code === 401 || code === 202) openLink();
+  else if (code === 429) status.textContent = "Demasiados intentos. Espera unos minutos.";
+  else status.textContent = "No se ha podido iniciar la descarga. Inténtalo de nuevo.";
 }
 
 async function download(file, button, status) {
@@ -180,16 +257,14 @@ async function download(file, button, status) {
   button.disabled = false;
   if (code === 200 && data.url) {
     status.textContent = "Descarga iniciada. Si se corta, puedes reanudarla desde el navegador durante unas horas.";
-    const a = el("a", { href: data.url, download: "" });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    return;
+    startDownload(data.url);
+    return true;
   }
   if (code === 404) status.textContent = "Este fichero ya no está disponible.";
   else if (code === 401 || code === 202) openLink();
   else if (code === 429) status.textContent = "Demasiados intentos. Espera unos minutos.";
   else status.textContent = "No se ha podido iniciar la descarga. Inténtalo de nuevo.";
+  return false;
 }
 
 const token = location.hash.slice(1);

@@ -11,6 +11,17 @@
     <tr><th>Creado</th><td>{{ link.created_at|local }} por {{ link.created_by }}</td></tr>
     <tr><th>Caduca</th><td>{{ link.expires_at|local }} <span class="muted">({{ link.expires_at|ago }})</span></td></tr>
     {% if link.revoked_at %}<tr><th>Revocado</th><td>{{ link.revoked_at|local }}</td></tr>{% endif %}
+    {% if files|length >= min_zip_files %}
+    <tr><th>ZIP</th><td>
+      {% if not zip_enabled %}desactivado
+      {% elif zip is none %}<span class="muted">no se genera: quedan menos de {{ min_zip_files }} ficheros disponibles</span>
+      {% elif zip.state == "ready" %}<span class="tag ok">listo</span> {{ zip.size_bytes|size }} <span class="muted">(generado {{ zip.built_at|local }})</span>
+      {% elif zip.state == "building" %}<span class="tag">generándose</span>
+      {% elif zip.state == "pending" %}<span class="tag">en cola</span>
+      {% elif zip.state == "skipped" %}<span class="tag bad">no se genera</span> {{ zip.problem }}
+      {% else %}<span class="tag bad">ha fallado</span> {{ zip.problem }}{% endif %}
+    </td></tr>
+    {% endif %}
     <tr><th>Descargas iniciadas</th><td>{{ tickets|length }}</td></tr>
     <tr><th>Credenciales fallidas</th><td>{{ failures }}{% if failures %} <span class="muted">(ver el registro para el detalle por IP)</span>{% endif %}</td></tr>
   </table>
@@ -27,6 +38,17 @@
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="danger">Revocar el enlace</button>
       <span class="hint">Corta también las descargas pendientes de reanudar.</span>
+    </form>
+    {% endif %}
+    {% if files|length >= min_zip_files %}
+    <form method="post" action="/links/{{ link.id }}/zip" class="toolbar">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% if zip_enabled %}
+      <button name="action" value="regenerate">Regenerar el ZIP</button>
+      <button name="action" value="disable">Quitar el ZIP</button>
+      {% else %}
+      <button name="action" value="enable">Ofrecer un ZIP con todo</button>
+      {% endif %}
     </form>
     {% endif %}
   </div>
@@ -100,7 +122,7 @@
   {% for t in tickets %}
   <tr>
     <td data-value="{{ t.issued_at }}">{{ t.issued_at|local("%d/%m/%Y %H:%M:%S") }}</td>
-    <td class="name">{{ names.get(t.link_file_id, "?") }}</td>
+    <td class="name">{% if t.link_file_id == 0 %}<span class="tag">ZIP</span> {{ zip_entries.get(t.id, [])|join(", ") }}{% else %}{{ names.get(t.link_file_id, "?") }}{% endif %}</td>
     {% if link.mode == "request" %}<td>{{ grant_names.get(t.grant_id, "—") }}</td>{% endif %}
     <td class="name">{{ t.ip or "" }}</td>
     <td class="small">{{ t.user_agent }}</td>

@@ -4,6 +4,7 @@
 #   TRAEFIK_IP             IP desde la que llega Traefik (la única de la que se cree X-Forwarded-For)
 #   PUBLIC_UPSTREAM        proceso público, p. ej. public:8001
 #   MEDIA_DIR              raíz de media dentro del contenedor de nginx (solo lectura)
+#   ZIPS_DIR               zips de enlaces que genera el worker (solo lectura)
 #   DOWNLOAD_RATE          límite de velocidad por conexión de descarga, p. ej. 12m
 #   DOWNLOAD_CONN_PER_IP   descargas simultáneas por IP
 #   API_RATE               peticiones por minuto a /api/ por IP, p. ej. 30r/m
@@ -66,6 +67,20 @@ server {
     location /_protected/ {
         internal;
         alias ${MEDIA_DIR}/;
+        limit_conn mm_conn ${DOWNLOAD_CONN_PER_IP};
+        limit_rate ${DOWNLOAD_RATE};
+        types { }
+        default_type application/octet-stream;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Content-Security-Policy "default-src 'none'; sandbox" always;
+        add_header Referrer-Policy no-referrer always;
+        add_header Cache-Control "private, no-store" always;
+    }
+
+    # Igual, para el zip de un enlace: el nombre lo pone la app, nunca el cliente.
+    location /_zips/ {
+        internal;
+        alias ${ZIPS_DIR}/;
         limit_conn mm_conn ${DOWNLOAD_CONN_PER_IP};
         limit_rate ${DOWNLOAD_RATE};
         types { }

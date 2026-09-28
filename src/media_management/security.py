@@ -78,11 +78,14 @@ class Ticket:
     link_file_id: int
     grant_id: int | None
     expires: int
+    zip_version: int | None = None
 
 
 def sign_ticket(key: str, t: Ticket) -> str:
-    payload = json.dumps([t.ticket_id, t.link_id, t.link_file_id, t.grant_id, t.expires],
-                         separators=(",", ":")).encode()
+    fields: list[object] = [t.ticket_id, t.link_id, t.link_file_id, t.grant_id, t.expires]
+    if t.zip_version is not None:
+        fields.append(t.zip_version)
+    payload = json.dumps(fields, separators=(",", ":")).encode()
     return f"{_b64(payload)}.{_b64(_mac(key, 'ticket', payload))}"
 
 
@@ -98,11 +101,14 @@ def verify_ticket(key: str, raw: str, now: float | None = None) -> Ticket | None
     if not hmac.compare_digest(given, _mac(key, "ticket", payload)):
         return None
     try:
-        tid, link_id, lf_id, grant_id, exp = json.loads(payload)
+        tid, link_id, lf_id, grant_id, exp, *extra = json.loads(payload)
     except (ValueError, TypeError):
         return None
+    if len(extra) > 1:
+        return None
     ticket = Ticket(str(tid), int(link_id), int(lf_id),
-                    None if grant_id is None else int(grant_id), int(exp))
+                    None if grant_id is None else int(grant_id), int(exp),
+                    int(extra[0]) if extra else None)
     if ticket.expires <= (time.time() if now is None else now):
         return None
     return ticket

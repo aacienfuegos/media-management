@@ -10,6 +10,13 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 CREATE INDEX IF NOT EXISTS tickets_link ON tickets (link_id);
 
+-- Qué había dentro del zip de cada ticket de zip, tal cual se emitió: el enlace puede
+-- cambiar después y el zip rehacerse con otro contenido.
+CREATE TABLE IF NOT EXISTS ticket_zip_entries (
+    ticket_id TEXT PRIMARY KEY,
+    names TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS downloads (
     id INTEGER PRIMARY KEY,
     ticket_id TEXT NOT NULL,

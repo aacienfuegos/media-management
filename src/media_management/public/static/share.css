@@ -52,8 +52,14 @@ button:disabled { opacity: .6; cursor: progress; }
 .meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .meta .name { font-weight: 600; overflow-wrap: anywhere; }
 .status { font-size: .85rem; color: var(--muted); }
+.all { margin-top: 1rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.actions button { margin: 0; }
+.actions span:empty { display: none; }
+.actions > span { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.small { font-size: .85rem; }
 @media (max-width: 520px) {
   .files li { flex-wrap: wrap; }
   .thumb { width: 96px; height: 54px; }
-  .files li button { width: 100%; }
+  .files li button, .actions button, .actions span { width: 100%; }
 }
