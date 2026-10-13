@@ -20,8 +20,8 @@ declaradas en un TOML (`src/roots.py:45-74`, ejemplo en `deploy/roots.example.to
 
 ## Para quién
 
-- **El dueño del panel.** Entra por el proxy de autenticación (Authentik delante de
-  Traefik, `README.md`, "Arquitectura") y solo si su nombre de usuario está en la lista
+- **El dueño del panel.** Entra por el proxy de autenticación (Traefik con forward-auth de
+  Authentik: `deploy/traefik/media.example.yml`, `deploy/README.md`, "Traefik") y solo si su nombre de usuario está en la lista
   `MM_PANEL_ALLOWED_USERS` (`src/panel/deps.py:83-96`). Es quien cataloga, crea enlaces,
   aprueba solicitudes y mueve ficheros a la papelera.
 - **Quien recibe un enlace.** No tiene cuenta: abre una URL con el token en el fragmento
@@ -105,7 +105,7 @@ Una sola página que se pinta con JavaScript (`src/public/static/index.html:16-1
 Solo lectura y solo con token Bearer (`src/api/deps.py:19-34`): raíces con totales,
 ficheros presentes de una raíz paginados, detalle de un fichero y el manifiesto con
 `ETag` (`src/api/routes.py:64-116`). La tabla de rutas está en `README.md`, "API"; el
-OpenAPI se publica en `/api/v1/openapi.json` (`src/api/app.py:24-25`).
+OpenAPI se publica sin token en `/api/v1/openapi.json` (`src/api/app.py:24-25`).
 
 ### Worker (segundo plano)
 

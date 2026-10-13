@@ -50,8 +50,8 @@ Definidos en `src/panel/static/panel.js:197-233` y listados en el diálogo de
 | `Esc` | Sale de la búsqueda o quita la selección de ficheros |
 | `Mayús` + clic | Selecciona un rango de ficheros en la Biblioteca (`panel.js:62-66`) |
 
-No se disparan mientras se escribe en un campo ni con `Ctrl`, `Cmd` o `Alt`
-(`panel.js:205-212`).
+No se disparan mientras se escribe en un campo, salvo `Esc`, ni con `Ctrl`, `Cmd` o
+`Alt` (`panel.js:205-212`).
 
 ### Mapa
 
@@ -60,7 +60,7 @@ No se disparan mientras se escribe en un campo ni con `Ctrl`, `Cmd` o `Alt`
 | `/` | Inicio | Marca de la cabecera | `src/panel/app.py:68-97`, `home.html` |
 | `/library` | Biblioteca | Pestaña, `g b`, búsqueda de Inicio, totales por raíz | `src/panel/catalog_routes.py:32-87`, `library.html` |
 | `/files/{id}` | Ficha de fichero | Fila de la Biblioteca, de un enlace o de la papelera | `src/panel/catalog_routes.py:90-105`, `file.html` |
-| `/thumb/{id}` | (imagen, no pantalla) | `<img>` de Biblioteca, ficha, enlace y papelera | `src/panel/catalog_routes.py:122-139` |
+| `/thumb/{id}` | (imagen, no pantalla) | `<img>` de Biblioteca, ficha, nuevo enlace, enlace y confirmación de papelera | `src/panel/catalog_routes.py:122-139` |
 | `/files/{id}/rename` | Renombrar | Botón de la ficha | `src/panel/trash_routes.py:63-68`, `rename.html` |
 | `/files/{id}/trash` | Confirmar papelera | Botón de la ficha | `src/panel/trash_routes.py:31-35`, `trash_confirm.html` |
 | `/links` | Enlaces | Pestaña, `g e`, tarjeta de Inicio | `src/panel/links_routes.py:106-122`, `links.html` |
@@ -70,7 +70,7 @@ No se disparan mientras se escribe en un campo ni con `Ctrl`, `Cmd` o `Alt`
 | `/requests/{id}` | Solicitud | "ver detalles" en Solicitudes, "Resolver" en el enlace | `src/panel/requests_routes.py:55-67`, `request.html` |
 | `/trash` | Papelera | Pestaña, `g p` | `src/panel/trash_routes.py:97-101`, `trash.html` |
 | `/manifest` | Manifiesto | Menú "Más", fila de Inicio | `src/panel/catalog_routes.py:142-148`, `manifest.html` |
-| `/manifest/compare` | Comparación | "ver" en Inicio, migas de Manifiesto | `src/panel/catalog_routes.py:151-156`, `compare.html` |
+| `/manifest/compare` | Comparación | "ver" en Inicio (`home.html:66`) | `src/panel/catalog_routes.py:151-156`, `compare.html` |
 | `/tokens` | Tokens API | Menú "Más" | `src/panel/admin_routes.py:16-20`, `tokens.html` |
 | `/audit` | Registro | Menú "Más", "Credenciales fallidas" del enlace | `src/panel/admin_routes.py:53-89`, `audit.html` |
 | `/healthz` | (JSON, no pantalla) | Monitorización; sin identidad | `src/panel/app.py:63-66` |

@@ -84,7 +84,7 @@ Tres flujos separados, uno por proceso. Ninguno comparte código de identidad co
 
 1. **Origen de confianza.** La petición tiene que venir de una IP de
    `MM_TRUSTED_PROXIES` (el proxy de autenticación); si no, 403. uvicorn no reescribe la
-   IP del cliente (`src/panel/deps.py:83-91`, `src/cli.py:21-22`).
+   IP del cliente (`src/panel/deps.py:83-91`, `src/cli.py:21-27`).
 2. **Usuario del proxy.** El usuario sale de la cabecera `x-authentik-username` y tiene
    que estar en `MM_PANEL_ALLOWED_USERS`, que compara el nombre de usuario, no el nombre
    visible ni el correo; si no, 403 (`src/panel/deps.py:92-96`).
@@ -92,7 +92,8 @@ Tres flujos separados, uno por proceso. Ninguno comparte código de identidad co
    (`src/panel/deps.py:99`, `src/panel/app.py:63-66`). Las páginas de error del panel solo
    se pintan para quien la pasa (`src/panel/app.py:42-61`).
 4. **CSRF en todo POST** (`CsrfUser`, `src/panel/deps.py:125-141`):
-   - `Sec-Fetch-Site` tiene que ser `same-origin` o `none` (líneas 129-130).
+   - Si viene `Sec-Fetch-Site`, tiene que ser `same-origin` o `none`; si falta, se da
+     por buena (líneas 129-130).
    - Si viene `Origin`, su host tiene que ser el de `Host` (líneas 131-133). Para que el
      navegador mande `Origin` real, el panel usa `Referrer-Policy: same-origin`
      (`src/panel/app.py:37-39`).
@@ -109,13 +110,14 @@ Tres flujos separados, uno por proceso. Ninguno comparte código de identidad co
 2. El token se busca por su SHA-256 en `api_tokens` y tiene que no estar revocado; cada
    uso actualiza `last_used_at` (`src/api/deps.py:26-34`).
 3. **Solo lectura**: las cuatro rutas de `/api/v1` son GET (`src/api/routes.py:64-116`).
-   `/healthz` no pide token (`src/api/app.py:30-34`).
+   `/healthz` no pide token (`src/api/app.py:30-34`), y tampoco el OpenAPI en
+   `/api/v1/openapi.json` (`src/api/app.py:24-25`): solo las rutas de `src/api/routes.py`
+   dependen de `TokenId`.
 4. Los tokens se crean y se revocan en el panel, y el token en claro se enseña una sola
    vez (`src/panel/admin_routes.py:23-50`). Los tokens no caducan; solo se revocan
    (`src/schema_main.sql:75-83`).
-5. La API no tiene limitación de peticiones propia en `src/`. Pendiente de confirmar si
-   la aplica el proxy delante (`.env.example` tiene `API_RATE` en la sección de nginx; el
-   detalle está en `deploy/`).
+5. `/api/v1` no tiene limitación de peticiones, ni en `src/` ni en las plantillas de
+   `deploy/` (ver "Observado").
 
 ### Página pública
 
@@ -149,8 +151,10 @@ Tres flujos separados, uno por proceso. Ninguno comparte código de identidad co
    la versión es la misma; también en cada reanudación con `Range`. Revocar corta las
    peticiones siguientes, no una transferencia ya en curso (`src/public/routes.py:195-239`).
 6. **Bloqueo por IP**, nunca por enlace: 10 fallos de credencial en 15 minutos desde una
-   IP bloquean esa IP en cualquier enlace (`src/public/guard.py:29-38`,
-   `src/settings.py:58-59`).
+   IP bloquean esa IP en la verificación de credenciales de cualquier enlace
+   (`src/public/guard.py:29-38`, `src/public/credentials.py:40-41`,
+   `src/settings.py:58-59`). No se consulta en `/api/request` (`src/public/routes.py:255-295`)
+   ni en los enlaces abiertos.
 7. **Retardo por enlace**: 0,5 s por fallo reciente en ese enlace, hasta 10 s, antes de
    comprobar la credencial (`src/public/guard.py:41-50`, `src/settings.py:60-61`).
 8. **IP real**: solo se cree `X-Real-IP` si la conexión viene de `MM_TRUSTED_NGINX`; si no,
@@ -170,7 +174,12 @@ No se corrige en este cambio.
   `date_utc` con el nombre `captured_at_utc` y `date_source` como `captured_at_source`
   (`src/api/routes.py:54-56`).
 - **Sin retención.** En `src/` no hay ningún borrado de `tickets`, `downloads`,
-  `auth_attempts`, `access_requests`, `events` ni `audit`, que guardan IP y navegador: las
-  tablas crecen sin límite. Pendiente de confirmar si se purgan fuera de la app.
+  `auth_attempts`, `access_requests`, `events` ni `audit`, que guardan IP y, algunas
+  (`tickets`, `downloads`, `access_requests`), navegador: las tablas crecen sin límite. Pendiente de confirmar si se purgan fuera de la app.
+- **API sin limitación de peticiones.** `API_RATE` es del nginx del público y limita su
+  `/api/` (`/api/share`, `/api/ticket`, `/api/zip`, `/api/request`), no `/api/v1`
+  (`deploy/nginx/share.conf.template:10,25,54-55`; `.env.example` lo pone en la sección de
+  nginx delante del público). El router de la API en `deploy/traefik/media.example.yml` no
+  tiene `middlewares`, y en `src/` no hay ningún límite.
 - **Sin migraciones** (ver "Migraciones"): cualquier cambio de columna en una tabla
   existente necesita un paso manual que hoy no está en el repo.

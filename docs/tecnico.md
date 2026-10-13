@@ -16,7 +16,7 @@ los dos: los resume y remite a ellos.
 | Plantillas del panel | Jinja2 con autoescape | `src/panel/deps.py:18-19` |
 | Página pública | HTML estático más JavaScript sin framework | `src/public/static/index.html`, `share-ui.js`, `share.js` |
 | Base de datos | Dos SQLite en WAL, con aiosqlite | `src/db.py:41-58` |
-| Contenedor | Una imagen; el proceso corre como UID 10001 | `Dockerfile:18-20` |
+| Contenedor | Una imagen con UID 10001; `compose.yaml` lo sustituye por `APP_UID`/`APP_GID` | `Dockerfile:15,18`, `compose.yaml:9` |
 | Delante del público | nginx, que sirve los bytes con `X-Accel-Redirect` | `src/public/routes.py:236-239`, `deploy/nginx/share.conf.template:67-82` |
 | Tipos | mypy estricto sobre `src/` | `pyproject.toml`, `[tool.mypy]` |
 | Tests | pytest, con marcas `local` (datos reales fuera del repo) y `docker` | `pyproject.toml`, `[tool.pytest.ini_options]` |
