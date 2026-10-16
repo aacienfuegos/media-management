@@ -1,0 +1,14 @@
+# Rutas de nivel 2 (CIE-251): su cambio lo aprueba Andrés (ruleset de develop y main, CIE-270).
+# Sin regla "*": los PR que no tocan estas rutas no le piden revisión.
+# Van también las que aún no existen, para que un fichero nuevo nazca con dueño.
+# AGENTS.md entra por si un CLAUDE.md lo importa (@AGENTS.md), como en tripplanner y agentos.
+
+/.github/ @aacienfuegos
+.claude/ @aacienfuegos
+.mcp.json @aacienfuegos
+CLAUDE.md @aacienfuegos
+AGENTS.md @aacienfuegos
+.husky/ @aacienfuegos
+.githooks/ @aacienfuegos
+.envrc @aacienfuegos
+.vscode/ @aacienfuegos
