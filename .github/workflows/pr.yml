@@ -1,0 +1,74 @@
+name: Checks del PR
+
+# pull_request y no pull_request_target: el código del PR corre sin secretos y con el token
+# de solo lectura. El nombre del job es el check obligatorio de los rulesets: no cambiarlo.
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks del PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      # uv export --no-hashes da solo nombre==versión, pero uv sync descarga la URL del lock: un PR
+      # podría apuntar una rueda de PyPI a otro host con la misma versión y pip-audit no lo vería.
+      # Por eso todo lo del lock tiene que venir de PyPI. Va aquí y no en un script del repo para
+      # que el PR no pueda cambiar la comprobación (pr.yml tiene dueño en CODEOWNERS).
+      - name: Fuentes del lockfile
+        run: |
+          python3 -I - <<'EOF'
+          import sys, tomllib
+          lock = tomllib.load(open("uv.lock", "rb"))
+          pypi = "https://files.pythonhosted.org/packages/"
+          malos = []
+          for p in lock["package"]:
+              src = p.get("source", {})
+              if src in ({"editable": "."}, {"virtual": "."}):
+                  continue
+              if src != {"registry": "https://pypi.org/simple"}:
+                  malos.append(f'{p["name"]}: source {src}')
+              for a in [p.get("sdist", {})] + p.get("wheels", []):
+                  if a and not a.get("url", "").startswith(pypi):
+                      malos.append(f'{p["name"]}: {a.get("url")}')
+          for m in malos:
+              print(m)
+          sys.exit(1 if malos else 0)
+          EOF
+
+      # La auditoría va antes de instalar: así el lockfile del PR no ejecuta código antes de
+      # auditarse ni elige la versión de pip-audit. --strict falla si una dependencia no se puede
+      # auditar (fuente git o URL), que pip-audit sin él se salta con salida 0.
+      - name: Auditoría de dependencias
+        run: |
+          uv export --frozen --no-hashes --no-emit-project -o "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit==2.10.1 -r "$RUNNER_TEMP/requirements.txt" --no-deps --disable-pip --strict
+
+      - name: ffmpeg para los vídeos sintéticos de los tests
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+
+      - name: Dependencias
+        run: uv sync --frozen
+
+      - name: Tipos
+        run: uv run mypy
+
+      - name: Tests
+        run: uv run pytest -q
