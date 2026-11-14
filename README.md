@@ -128,3 +128,5 @@ tokens de solo lectura creados desde el panel.
 | GET | `/api/v1/files/{id}` | detalle de un fichero |
 | GET | `/api/v1/manifest` | el manifiesto, byte a byte igual que el fichero; `ETag` + `If-None-Match` → `304` |
 | GET | `/healthz` | estado real: raíces montadas, export de IDs fresco, Jellyfin, worker |
+
+<!-- prueba (CIE-1080), no mergear -->
