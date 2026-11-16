@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
@@ -7,7 +7,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.13-slim AS runtime
+FROM python:3.15-slim AS runtime
 # La base de Docker tarda días en recoger las DSA de Debian: se aplican al construir.
 # pip y setuptools no hacen falta en ejecución y traen sus propias dependencias
 # vendorizadas con CVE: fuera de la imagen final.
