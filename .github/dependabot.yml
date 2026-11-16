@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    # Una versión publicada hace menos de 7 días no entra: da margen a que se
+    # retire un paquete comprometido. No afecta a las actualizaciones de seguridad.
+    cooldown:
+      default-days: 7
+    # Un PR semanal con los minors y parches; cada major, en su propio PR.
+    groups:
+      menores-y-parches:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      imagenes:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      acciones:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
