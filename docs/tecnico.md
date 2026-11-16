@@ -16,7 +16,7 @@ los dos: los resume y remite a ellos.
 | Plantillas del panel | Jinja2 con autoescape | `src/panel/deps.py:18-19` |
 | Página pública | HTML estático más JavaScript sin framework | `src/public/static/index.html`, `share-ui.js`, `share.js` |
 | Base de datos | Dos SQLite en WAL, con aiosqlite | `src/db.py:41-58` |
-| Contenedor | Una imagen con UID 10001; `compose.yaml` lo sustituye por `APP_UID`/`APP_GID` | `Dockerfile:15,18`, `compose.yaml:9` |
+| Contenedor | Una imagen con UID 10001 y las actualizaciones de seguridad de Debian aplicadas al construir; `compose.yaml` sustituye el UID por `APP_UID`/`APP_GID` | `Dockerfile:14,17,20`, `compose.yaml:9` |
 | Delante del público | nginx, que sirve los bytes con `X-Accel-Redirect` | `src/public/routes.py:236-239`, `deploy/nginx/share.conf.template:67-82` |
 | Tipos | mypy estricto sobre `src/` | `pyproject.toml`, `[tool.mypy]` |
 | Tests | pytest, con marcas `local` (datos reales fuera del repo) y `docker` | `pyproject.toml`, `[tool.pytest.ini_options]` |
@@ -123,7 +123,9 @@ los PR):
    esperado (`deploy/demo/manifest.expected.json`).
 3. `build`: construye la imagen, la escanea con Trivy (bloquea con HIGH o CRITICAL que
    tengan arreglo) y la publica en `ghcr.io` con la etiqueta `staging` (`develop`) o
-   `latest` (`main`).
+   `latest` (`main`). La etapa final (`runtime`) aplica las actualizaciones de seguridad
+   de Debian y no sale de la caché (`no-cache-filters: runtime`), porque la base de
+   Docker tarda días en recogerlas; la etapa `build` sí sale de caché.
 
 ## Despliegue
 
