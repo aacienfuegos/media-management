@@ -10,13 +10,13 @@ los dos: los resume y remite a ellos.
 
 | Pieza | Qué se usa | Fuente |
 |---|---|---|
-| Lenguaje | Python 3.13 | `pyproject.toml` (`requires-python`), `.python-version`, `Dockerfile:1,10` |
+| Lenguaje | Python 3.15 | `pyproject.toml` (`requires-python`), `.python-version`, `Dockerfile:1,10` |
 | Gestor de dependencias | uv, con `uv.lock` | `README.md`, "Desarrollo"; `.github/workflows/image.yml` |
 | Web | FastAPI servido con uvicorn, sin `proxy_headers` | `src/cli.py:14-27` |
 | Plantillas del panel | Jinja2 con autoescape | `src/panel/deps.py:18-19` |
 | Página pública | HTML estático más JavaScript sin framework | `src/public/static/index.html`, `share-ui.js`, `share.js` |
 | Base de datos | Dos SQLite en WAL, con aiosqlite | `src/db.py:41-58` |
-| Contenedor | Una imagen con UID 10001 y las actualizaciones de seguridad de Debian aplicadas al construir; `compose.yaml` sustituye el UID por `APP_UID`/`APP_GID` | `Dockerfile:14,17,20`, `compose.yaml:9` |
+| Contenedor | Una imagen con UID 10001 y las actualizaciones de seguridad de Debian aplicadas al construir; `compose.yaml` sustituye el UID por `APP_UID`/`APP_GID` | `Dockerfile:14,17,21`, `compose.yaml:9` |
 | Delante del público | nginx, que sirve los bytes con `X-Accel-Redirect` | `src/public/routes.py:236-239`, `deploy/nginx/share.conf.template:67-82` |
 | Tipos | mypy estricto sobre `src/` | `pyproject.toml`, `[tool.mypy]` |
 | Tests | pytest, con marcas `local` (datos reales fuera del repo) y `docker` | `pyproject.toml`, `[tool.pytest.ini_options]` |
