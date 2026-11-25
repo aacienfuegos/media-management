@@ -91,7 +91,7 @@ demo: la CI lo compara clip a clip.
 
 ## Desarrollo
 
-Requisitos: Python 3.13 y [uv](https://docs.astral.sh/uv/); `ffmpeg` para los vídeos
+Requisitos: Python 3.15 y [uv](https://docs.astral.sh/uv/); `ffmpeg` para los vídeos
 sintéticos de los tests; Docker para la prueba de integración con nginx (se salta sin
 él).
 

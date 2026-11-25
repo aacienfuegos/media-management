@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
@@ -7,14 +7,15 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.13-slim AS runtime
+FROM python:3.15-slim AS runtime
 # La base de Docker tarda días en recoger las DSA de Debian: se aplican al construir.
 # pip y setuptools no hacen falta en ejecución y traen sus propias dependencias
 # vendorizadas con CVE: fuera de la imagen final.
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
- && rm -rf /usr/local/lib/python3.13/site-packages/pip* /usr/local/lib/python3.13/site-packages/setuptools* \
-           /usr/local/lib/python3.13/site-packages/_distutils_hack /usr/local/bin/pip* \
- && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+ && rm -rf /usr/local/lib/python3.*/site-packages/pip* /usr/local/lib/python3.*/site-packages/setuptools* \
+           /usr/local/lib/python3.*/site-packages/_distutils_hack /usr/local/bin/pip* \
+ && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app \
+ && ! python3 -c 'import pip'
 COPY --from=build /app/.venv /app/.venv
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 USER 10001
